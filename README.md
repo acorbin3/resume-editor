@@ -53,22 +53,20 @@ Data lives in `data/<id>/` (source PDF, `vN.tex`, `vN.pdf`, `meta.json`).
 - `CLAUDE_MODEL`: default `claude-opus-5-5`.
 - `CLAUDE_EFFORT`: `low` | `medium` (default) | `high`. Higher means better conversions but slower.
 - `PORT`: default 3000 (this machine uses 4747).
-- `HOST`: default `127.0.0.1`. The server only listens locally; the Cloudflare tunnel reaches it there.
+- `HOST`: default `127.0.0.1`. The server only listens locally; put a reverse proxy in front to expose it.
 - `APP_PASSWORD`: login password. If unset, there's no login (local use only).
 - `SESSION_SECRET`: signs login cookies. Changing it signs everyone out.
 
 ## Running it as a service (macOS)
 
-`deploy/` has examples for running it in the background and exposing it with a Cloudflare Tunnel:
-
 1. Set `APP_PASSWORD` and `SESSION_SECRET` in `.env` (`openssl rand -hex 32` makes a good secret).
 2. Copy `deploy/resume-editor.plist.example` to `~/Library/LaunchAgents/`, fill in the paths, and load it:
    `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.resume-editor.plist`
    Restart after code or `.env` changes: `launchctl kickstart -k gui/$(id -u)/com.example.resume-editor`
-3. Add the ingress rule from `deploy/cloudflared-ingress.example.yml` to your tunnel config, then route DNS:
-   `cloudflared tunnel route dns <tunnel> resume.example.com`
 
-The server only listens on `127.0.0.1`, so the tunnel is the only way in from outside.
+The server only listens on `127.0.0.1`. To reach it from elsewhere, put a reverse proxy in front that
+terminates HTTPS and sets `X-Forwarded-For` and `X-Forwarded-Proto` (used for login rate limiting and
+secure cookies).
 
 ## Security notes
 
