@@ -5,6 +5,28 @@ A small web app for rebuilding resumes in one consistent LaTeX template with Cla
 Upload a resume PDF. Claude rebuilds it in the house LaTeX template (Jake Gutierrez / sb2nov),
 tectonic compiles it, and you tweak it with prompts while watching the PDF update.
 
+## Screenshots
+
+*All screenshots use a fictional demo resume.*
+
+**Split view.** The PDF on the left, the LaTeX on the right. Double-clicking "Northwind" on the PDF jumped
+the editor to that line and selected the word.
+
+![Split view with PDF and LaTeX editor](docs/screenshots/split-view.jpg)
+
+**Highlight to comment.** Select text on the PDF, say what should change, and the comments go along with
+your next prompt to Claude.
+
+![Highlighting text on the PDF and adding comments](docs/screenshots/highlight-comments.jpg)
+
+**Editor to PDF.** Double-click a line in the editor to see where it lands on the page.
+
+![Double-clicking a LaTeX line highlights it on the PDF](docs/screenshots/sync-editor-to-pdf.jpg)
+
+**Upload.** Drop in any resume PDF, with optional instructions for the first pass.
+
+<img src="docs/screenshots/upload.jpg" alt="Upload screen" width="560">
+
 ## Setup
 
 ```bash

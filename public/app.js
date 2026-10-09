@@ -688,6 +688,17 @@ $("resumePicker").onchange = (e) => {
   }
   e.target.value ? openResume(e.target.value) : newResume();
 };
+// Follow #<id> links and back/forward between resumes.
+window.addEventListener("hashchange", () => {
+  const id = location.hash.slice(1);
+  if (id === (state?.id || "") || busy) return;
+  if (!confirmDiscard()) {
+    history.replaceState(null, "", state?.id ? `#${state.id}` : location.pathname);
+    return;
+  }
+  $("resumePicker").value = id;
+  id ? openResume(id) : newResume();
+});
 window.addEventListener("beforeunload", (e) => {
   if (dirty) e.preventDefault();
 });
