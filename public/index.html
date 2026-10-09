@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Editor</title>
+  <link rel="stylesheet" href="/vendor/pdfjs-web/pdf_viewer.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Resume Editor</div>
+    <select id="resumePicker" aria-label="Open a resume"></select>
+    <div class="spacer"></div>
+    <div class="downloads" id="downloads" hidden>
+      <a id="dlPdf" class="btn primary" href="#">Download PDF</a>
+      <a id="dlTex" class="btn" href="#">Download .tex</a>
+    </div>
+    <button class="btn" id="logoutBtn" hidden>Sign out</button>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- Upload screen -->
+  <main id="uploadView" class="upload-view">
+    <form id="uploadForm" class="upload-card">
+      <h1>Convert a resume to your template</h1>
+      <p class="muted">Upload a PDF. Claude rebuilds it in the standard LaTeX template, then you can tweak it with prompts.</p>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden />
+        <span id="dropText">Drop a PDF here or <u>browse</u></span>
+      </label>
+      <label class="field">
+        <span>Instructions for the first pass (optional)</span>
+        <textarea id="instructions" rows="3" placeholder="e.g. Target senior product manager roles. Drop the high school section."></textarea>
+      </label>
+      <label class="check"><input type="checkbox" id="onePage" checked /> Keep it to one page</label>
+      <button class="btn primary big" id="convertBtn" type="submit" disabled>Convert</button>
+    </form>
+  </main>
+
+  <!-- Editor screen -->
+  <main id="editorView" class="editor-view" hidden>
+    <section class="side">
+      <div class="messages" id="messages"></div>
+      <div class="chips" id="chips">
+        <button data-prompt="Make it fit on one page.">Fit to one page</button>
+        <button data-prompt="Tighten the bullets: shorter, stronger verbs, results first. Keep all facts.">Tighten bullets</button>
+        <button data-fill="Tailor this resume to the following job description. Reorder and reword to match, but don't invent anything:&#10;&#10;">Tailor to a job…</button>
+        <button data-prompt="Fix any bullets that end with a one or two word last line.">Fix orphan words</button>
+      </div>
+      <div class="comments" id="comments" hidden>
+        <div class="comments-head">
+          <span>Comments to include</span>
+          <button type="button" class="link" id="clearComments">Clear</button>
+        </div>
+        <ol id="commentList"></ol>
+      </div>
+      <form id="promptForm" class="prompt">
+        <textarea id="promptInput" rows="3" placeholder="Describe a change, or highlight text on the PDF to comment on it"></textarea>
+        <button class="btn primary" id="sendBtn" type="submit">Apply</button>
+      </form>
+      <details class="versions">
+        <summary>Versions</summary>
+        <ol id="versionList"></ol>
+      </details>
+    </section>
+
+    <section class="preview">
+      <div class="tabs" role="tablist">
+        <button role="tab" class="tab" data-view="pdf">Preview</button>
+        <button role="tab" class="tab" data-view="split">Split</button>
+        <button role="tab" class="tab" data-view="tex">LaTeX</button>
+        <span class="page-info" id="pageInfo"></span>
+      </div>
+      <div class="panes" id="panes">
+        <div class="pane" id="pdfPane">
+          <div class="pdf-viewer" id="pdfViewer"></div>
+          <div class="hint muted" id="hint">Highlight text to comment on it · double-click to jump to the LaTeX</div>
+        </div>
+        <div class="divider" id="divider" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+        <div class="pane" id="texPane">
+          <div class="editor-host" id="editorHost"></div>
+          <div class="tex-actions">
+            <button class="btn primary" id="recompileBtn" disabled>Recompile</button>
+            <span class="muted" id="texStatus">⌘S to recompile · double-click to find it in the PDF</span>
+          </div>
+        </div>
+      </div>
+      <form class="popover" id="popover" hidden>
+        <div class="popover-quote" id="popoverQuote"></div>
+        <textarea id="popoverNote" rows="2" placeholder="What should change here?"></textarea>
+        <div class="popover-actions">
+          <button type="button" class="btn" id="popoverCancel">Cancel</button>
+          <button type="submit" class="btn primary">Add comment</button>
+        </div>
+      </form>
+      <div class="busy" id="busy" hidden>
+        <div class="spinner"></div>
+        <div id="busyText">Working…</div>
+        <div class="muted" id="busyTimer"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

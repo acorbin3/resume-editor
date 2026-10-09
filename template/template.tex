@@ -1,0 +1,191 @@
+%-------------------------
+% Resume in Latex
+% Author : Jane Doe
+% Based off of: https://github.com/sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\ifdefined\pdfgentounicode\input{glyphtounicode}\fi
+
+
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.9in}
+\addtolength{\evensidemargin}{-0.9in}
+\addtolength{\textwidth}{1.8in}
+\setlength{\topmargin}{-0.75in}
+\setlength{\headheight}{0pt}
+\setlength{\headsep}{0pt}
+\setlength{\textheight}{10.5in}
+\renewcommand{\footrulewidth}{0pt}
+
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-8pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-9pt}]
+
+% Ensure that generate pdf is machine readable/ATS parsable
+\ifdefined\pdfgentounicode\pdfgentounicode=1\fi
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-9pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-9pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-9pt}
+}
+
+% Bold headline line for a group of related bullets (result up front)
+\newcommand{\resumeHeadline}[1]{
+    \vspace{2pt}\item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small\textbf{#1} & \\
+    \end{tabular*}\vspace{-9pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-8pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.1in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-4pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape Jane Doe} \\ \vspace{1pt}
+    \small Austin, TX $|$ {\underline{(555) 123-4567}} $|$ \href{mailto:jane.doe@email.com}{\underline{jane.doe@email.com}} $|$
+    \href{https://www.linkedin.com/in/janedoe/}{\underline{linkedin.com/in/janedoe}}
+\end{center}
+
+%-----------SUMMARY-----------
+\section{Summary}
+\vspace{1pt}
+\small 8+ years building data platforms and customer-facing products. Known for turning ambiguous problems into shipped products, partnering across engineering, design, and sales.
+\vspace{-6pt}
+
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Acme Corp}{June 2022 -- Present}
+      {Senior Product Manager, Data Platform}{Austin, TX}
+      \vspace{4pt}
+
+    % Optional bold headline that groups related bullets, result up front
+    \resumeHeadline{Platform consolidation: 7 pipelines to 3, support tickets down 31\%}
+      \resumeItemListStart
+        \resumeItem{Consolidated 7 ingestion pipelines to 3 using usage telemetry, lowering cost and cutting setup-related support tickets 31\%.}
+        \resumeItem{Built a deprecation playbook adopted by 8 teams and moved 180 customers to the new platform with zero downtime.}
+      \resumeItemListEnd
+
+% -----------Second title at the same employer-----------
+    \resumeSubSubheading
+      {Product Manager, Integrations}{June 2020 -- June 2022}
+      \vspace{4pt}
+      \resumeItemListStart
+        \resumeItem{Owned a \$40M integrations portfolio (+40\% YoY) across 2.5k customers with 30 engineers on 3 teams.}
+      \resumeItemListEnd
+
+% -----------Compact one-line job (employer, title, dates)-----------
+    \resumeProjectHeading
+      {\textbf{Beta Systems}, \emph{Product Analyst}}{August 2018 -- June 2020}
+      \resumeItemListStart
+        \resumeItem{Launched self-service onboarding that cut sales effort 30\%.}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+
+%-----------SKILLS-----------
+\section{Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Product}{: strategy and roadmaps, A/B testing, pricing} \\
+     \textbf{Technical}{: SQL, Python, data pipelines, APIs} \\
+     \textbf{Tools}{: Jira, Figma, Snowflake, Looker}
+    }}
+ \end{itemize}
+
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeProjectHeading
+      {\textbf{M.S., Engineering Management}, Northeastern University}{2018}
+      \vspace{3pt}
+    \resumeProjectHeading
+      {\textbf{B.S., Mechanical Engineering}, University of Texas}{2016}
+      \vspace{3pt}
+  \resumeSubHeadingListEnd
+
+
+%-------------------------------------------
+\end{document}

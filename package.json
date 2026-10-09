@@ -1,0 +1,35 @@
+{
+  "name": "resume-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Upload a resume PDF, convert it to a standard LaTeX template with Claude, tweak it with prompts, and download the PDF.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "build:editor": "esbuild editor/entry.js --bundle --format=esm --minify --outfile=public/vendor/editor.js",
+    "postinstall": "npm run build:editor"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/legacy-modes": "^6.5.5",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@codemirror/view": "^6.43.14",
+    "codemirror": "^6.0.2",
+    "express": "^5.3.0",
+    "multer": "^2.4.0",
+    "pdfjs-dist": "^6.4.299"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "license": "MIT"
+}

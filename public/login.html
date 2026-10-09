@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Editor</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="upload-view">
+    <form id="loginForm" class="upload-card login-card">
+      <h1>Resume Editor</h1>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" id="password" autocomplete="current-password" autofocus required />
+      </label>
+      <div class="login-error" id="error" hidden></div>
+      <button class="btn primary big" type="submit">Sign in</button>
+    </form>
+  </main>
+  <script>
+    document.getElementById("loginForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const err = document.getElementById("error");
+      err.hidden = true;
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: document.getElementById("password").value }),
+      });
+      if (res.ok) return location.replace("/" + location.hash);
+      const body = await res.json().catch(() => ({}));
+      err.textContent = body.error || "Sign in failed.";
+      err.hidden = false;
+    };
+  </script>
+</body>
+</html>

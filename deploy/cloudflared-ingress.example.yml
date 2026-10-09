@@ -1,0 +1,5 @@
+# Add above the catch-all `- service: http_status:404` rule in ~/.cloudflared/config.yml.
+# PORT must match the PORT in .env.
+ingress:
+  - hostname: resume.example.com
+    service: http://127.0.0.1:4747
