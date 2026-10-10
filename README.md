@@ -46,15 +46,20 @@ Needs Node 22+. Without an API key it shells out to [Claude Code](https://claude
    has little or no text (scanned or image-only), Claude reads the PDF itself instead.
 2. **Compile** with tectonic. If compilation fails, the error log goes back to Claude for a fix
    (up to 2 tries). If "Keep it to one page" is checked and the result spills over, Claude tightens it once.
-3. **Tweak** with prompts. Claude returns small find/replace edits (fast) or a full rewrite for big changes.
+3. **Analyze my resume** asks Claude for 5 to 12 specific suggestions (result-first bullets, missing metrics,
+   orphan words, consistency, length). Each is a find/replace you can accept, edit, or skip; accepted ones
+   are applied in one go as a new version. Claude is told never to invent numbers or claims, and any
+   suggestion whose text doesn't match the document exactly is dropped before you see it.
+4. **Tweak** with prompts. Claude returns small find/replace edits (fast) or a full rewrite for big changes.
    The original resume text is sent along so you can ask to pull content back in.
    **Highlight text on the preview** to attach a comment to it. Comments queue up as numbered highlights
    and are added to your next prompt.
-4. **Edit LaTeX by hand** in the code editor (Split or LaTeX view): syntax highlighting, line numbers,
+5. **Edit LaTeX by hand** in the code editor (Split or LaTeX view): syntax highlighting, line numbers,
    search (⌘F), and ⌘S to recompile. Compile errors are marked on the offending line.
    **Double-click** a word on the PDF to jump to its LaTeX line, or a line in the editor to flash its spot on
    the PDF. This uses the SyncTeX map tectonic writes on every compile (`v<N>.synctex.gz`).
-5. **Versions**: every change is saved. Click any version to go back to it. Download the PDF or `.tex`.
+6. **Versions and Changes**: every change is saved. Click any version to go back to it, and the Changes tab
+   shows a word-level diff between any two versions. Download the PDF or `.tex`.
 
 Data lives in `data/<id>/` (source PDF, `vN.tex`, `vN.pdf`, `meta.json`).
 

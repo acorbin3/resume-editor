@@ -44,10 +44,25 @@
     <section class="side">
       <div class="messages" id="messages"></div>
       <div class="chips" id="chips">
+        <button class="chip-primary" id="analyzeBtn" type="button">✦ Analyze my resume</button>
         <button data-prompt="Make it fit on one page.">Fit to one page</button>
         <button data-prompt="Tighten the bullets: shorter, stronger verbs, results first. Keep all facts.">Tighten bullets</button>
         <button data-fill="Tailor this resume to the following job description. Reorder and reword to match, but don't invent anything:&#10;&#10;">Tailor to a job…</button>
         <button data-prompt="Fix any bullets that end with a one or two word last line.">Fix orphan words</button>
+      </div>
+      <div class="suggestions" id="suggestions" hidden>
+        <div class="comments-head">
+          <span id="suggestionsTitle">Suggestions</span>
+          <button type="button" class="link" id="closeSuggestions">Close</button>
+        </div>
+        <p class="muted" id="suggestionsSummary"></p>
+        <div id="suggestionList"></div>
+        <div class="suggestions-actions">
+          <button type="button" class="link" id="acceptAll">Accept all</button>
+          <button type="button" class="link" id="skipAll">Skip all</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn primary" id="applyBtn" disabled>Apply 0</button>
+        </div>
       </div>
       <div class="comments" id="comments" hidden>
         <div class="comments-head">
@@ -71,6 +86,7 @@
         <button role="tab" class="tab" data-view="pdf">Preview</button>
         <button role="tab" class="tab" data-view="split">Split</button>
         <button role="tab" class="tab" data-view="tex">LaTeX</button>
+        <button role="tab" class="tab" data-view="diff">Changes</button>
         <span class="page-info" id="pageInfo"></span>
       </div>
       <div class="panes" id="panes">
@@ -79,6 +95,14 @@
           <div class="hint muted" id="hint">Highlight text to comment on it · double-click to jump to the LaTeX</div>
         </div>
         <div class="divider" id="divider" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+        <div class="pane" id="diffPane">
+          <div class="diff-head">
+            <label>Compare <select id="diffFrom"></select></label>
+            <label>to <select id="diffTo"></select></label>
+            <span class="muted" id="diffStats"></span>
+          </div>
+          <div class="diff-body" id="diffBody"></div>
+        </div>
         <div class="pane" id="texPane">
           <div class="editor-host" id="editorHost"></div>
           <div class="tex-actions">

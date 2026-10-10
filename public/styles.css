@@ -157,12 +157,50 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
 .comment-quote { color: var(--muted); font-size: 12px; }
 .link { font: inherit; font-size: 12px; background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; }
 
+.chip-primary { background: var(--accent) !important; color: var(--accent-text) !important; border-color: var(--accent) !important; font-weight: 600; }
+
+/* Suggestions panel */
+.suggestions { margin: 8px 16px 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); max-height: 48vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.suggestions p { margin: 0; font-size: 13px; }
+#suggestionList { display: flex; flex-direction: column; gap: 8px; }
+.sg { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 8px 10px; font-size: 13px; }
+.sg.accepted { border-color: var(--accent); }
+.sg.skipped { opacity: 0.5; }
+.sg-head { display: flex; align-items: center; gap: 8px; }
+.sg-head .cat { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); padding: 1px 6px; border: 1px solid var(--border); border-radius: 999px; }
+.sg-head .title { font-weight: 600; flex: 1; }
+.sg-reason { color: var(--muted); margin: 4px 0 6px; }
+.sg-diff { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.45; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); }
+.sg-diff del { background: rgb(220 38 38 / 0.18); text-decoration: line-through; text-decoration-color: rgb(220 38 38 / 0.6); }
+.sg-diff ins { background: rgb(22 163 74 / 0.22); text-decoration: none; }
+.sg-actions { display: flex; gap: 6px; margin-top: 6px; }
+.sg-actions button { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+.sg-actions button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.sg textarea { width: 100%; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.suggestions-actions { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--border); }
+
+/* Diff view */
+.diff-head { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.diff-head select { padding: 3px 6px; }
+.diff-body { flex: 1; overflow: auto; padding: 12px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.diff-body .ctx { color: var(--muted); }
+.diff-body .fold { color: var(--muted); font-style: italic; padding: 2px 0; }
+.diff-body .rm, .diff-body .ad, .diff-body .ch { display: block; border-left: 3px solid transparent; padding-left: 8px; margin-left: -11px; }
+.diff-body .rm { background: rgb(220 38 38 / 0.12); border-left-color: rgb(220 38 38 / 0.6); }
+.diff-body .ad { background: rgb(22 163 74 / 0.14); border-left-color: rgb(22 163 74 / 0.6); }
+.diff-body .ch { background: rgb(234 179 8 / 0.10); border-left-color: rgb(234 179 8 / 0.7); }
+.diff-body del { background: rgb(220 38 38 / 0.25); text-decoration: line-through; }
+.diff-body ins { background: rgb(22 163 74 / 0.28); text-decoration: none; }
+.diff-empty { color: var(--muted); padding: 24px; text-align: center; }
+
 .login-card { max-width: 380px; }
 .login-card input { padding: 9px 10px; }
 .login-error { color: var(--error); }
 .panes { flex: 1; display: flex; min-height: 0; min-width: 0; }
 .panes > .pane { min-width: 0; }
 .panes.view-split #pdfPane { flex: 0 0 var(--split, 55%); }
+.panes:not(.view-diff) #diffPane { display: none; }
+.panes.view-diff #pdfPane, .panes.view-diff #texPane, .panes.view-diff #divider { display: none; }
 .panes.view-split #texPane { flex: 1; }
 .panes.view-pdf #texPane, .panes.view-pdf #divider,
 .panes.view-tex #pdfPane, .panes.view-tex #divider { display: none; }

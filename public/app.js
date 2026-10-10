@@ -25,6 +25,7 @@ let savedTex = ""; // LaTeX of the version being shown
 let dirty = false; // editor has changes not yet recompiled
 let syncCache = { key: null, map: null };
 let pdfRendered = Promise.resolve();
+let review = null; // { version, summary, suggestions: [{..., state: "pending"|"accepted"|"skipped", edited }] }
 
 const editor = createEditor({
   parent: $("editorHost"),
@@ -124,6 +125,9 @@ function render(tex) {
     editor.setValue(tex);
     setDirty(false);
   }
+  if (review && review.version !== v) closeReview();
+  fillDiffSelectors();
+  if (currentView() === "diff") loadDiff();
 
   const msgs = $("messages");
   msgs.innerHTML = "";
@@ -218,6 +222,7 @@ async function convert(file) {
   savedTex = "";
   editor.setValue("");
   setDirty(false);
+  closeReview();
   $("pdfViewer").innerHTML = "";
   renderedSrc = null;
   setComments([]);
@@ -333,6 +338,7 @@ function setView(name) {
     localStorage.setItem("view", name);
   } catch {}
   if (name !== "pdf") editor.view.requestMeasure();
+  if (name === "diff") loadDiff();
 }
 
 const currentView = () => $("panes").className.match(/view-(\w+)/)?.[1] || "pdf";
@@ -636,6 +642,250 @@ $("popoverNote").onkeydown = (e) => {
   if (e.key === "Escape") closePopover();
 };
 $("clearComments").onclick = () => setComments([]);
+
+// ---------- Analyze and approve ----------
+
+function escapeHtml(t) {
+  return t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+
+// Word-level diff for short strings (suggestion cards). Simple LCS on word tokens.
+function wordDiffHtml(a, b) {
+  const A = a.split(/(\s+)/), B = b.split(/(\s+)/);
+  const n = A.length, m = B.length;
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  let i = 0, j = 0, out = "";
+  const flush = (buf, tag) => (buf.length ? `<${tag}>${escapeHtml(buf.join(""))}</${tag}>` : "");
+  let del = [], ins = [];
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i] === B[j]) {
+      out += flush(del, "del") + flush(ins, "ins"); del = []; ins = [];
+      out += escapeHtml(A[i]); i++; j++;
+    } else if (j < m && (i >= n || L[i][j + 1] >= L[i + 1][j])) { ins.push(B[j]); j++; }
+    else { del.push(A[i]); i++; }
+  }
+  return out + flush(del, "del") + flush(ins, "ins");
+}
+
+// Inline word diff for one-line changes; stacked before/after when either side spans lines.
+function suggestionDiffHtml(find, replacement) {
+  if (!find.includes("\n") && !replacement.includes("\n")) return wordDiffHtml(find, replacement);
+  return `<del>${escapeHtml(find.trim())}</del>\n<ins>${escapeHtml(replacement.trim())}</ins>`;
+}
+
+async function analyze() {
+  if (busy || !state?.id || !state.current) return;
+  if (dirty) {
+    addMessage("error", "You have unsaved LaTeX edits. Recompile them (⌘S) first so the review covers your latest version.");
+    return;
+  }
+  const focus = $("promptInput").value.trim();
+  setBusy(true, "Claude is reviewing the resume…");
+  try {
+    const res = await fetch(`/api/resumes/${state.id}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ focus }),
+    });
+    await streamJson(res, (evt) => {
+      progressHandler(evt);
+      if (evt.type === "done") {
+        review = {
+          version: evt.version,
+          summary: evt.summary,
+          suggestions: evt.suggestions.map((sg) => ({ ...sg, state: "pending", edited: null })),
+        };
+        $("promptInput").value = "";
+        renderReview();
+      }
+      if (evt.type === "error") addMessage("error", evt.message);
+    });
+  } catch (err) {
+    addMessage("error", err.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderReview() {
+  const panel = $("suggestions");
+  if (!review) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  $("suggestionsTitle").textContent = `${review.suggestions.length} suggestions · version ${review.version}`;
+  $("suggestionsSummary").textContent = review.summary;
+  const list = $("suggestionList");
+  list.innerHTML = "";
+  for (const sg of review.suggestions) {
+    const card = document.createElement("div");
+    card.className = `sg ${sg.state}`;
+    card.dataset.id = sg.id;
+    const replacement = sg.edited ?? sg.replace;
+    card.innerHTML = `
+      <div class="sg-head"><span class="cat">${escapeHtml(sg.category)}</span><span class="title">${escapeHtml(sg.title)}</span></div>
+      <div class="sg-reason">${escapeHtml(sg.reason)}</div>
+      <div class="sg-diff">${suggestionDiffHtml(sg.find, replacement)}</div>
+      <div class="sg-actions">
+        <button type="button" data-act="accept" class="${sg.state === "accepted" ? "on" : ""}">Accept</button>
+        <button type="button" data-act="edit">${sg.edited != null ? "Edited" : "Edit"}</button>
+        <button type="button" data-act="skip" class="${sg.state === "skipped" ? "on" : ""}">Skip</button>
+        <span class="spacer"></span>
+        <button type="button" data-act="show" title="Show in the PDF">Show</button>
+      </div>`;
+    list.append(card);
+  }
+  const n = review.suggestions.filter((x) => x.state === "accepted").length;
+  $("applyBtn").textContent = `Apply ${n}`;
+  $("applyBtn").disabled = busy || n === 0;
+}
+
+function closeReview() {
+  review = null;
+  renderReview();
+}
+
+$("suggestionList").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn || !review) return;
+  const card = btn.closest(".sg");
+  const sg = review.suggestions.find((x) => x.id === Number(card.dataset.id));
+  const act = btn.dataset.act;
+  if (act === "accept") sg.state = sg.state === "accepted" ? "pending" : "accepted";
+  if (act === "skip") sg.state = sg.state === "skipped" ? "pending" : "skipped";
+  if (act === "show") {
+    // Jump the PDF to the first line of the text this suggestion changes.
+    const line = savedTex.slice(0, savedTex.indexOf(sg.find)).split("\n").length;
+    if (currentView() === "diff") setView("split");
+    syncToPdf(line);
+    return;
+  }
+  if (act === "edit") {
+    const existing = card.querySelector("textarea");
+    if (existing) {
+      sg.edited = existing.value;
+      if (sg.edited === sg.replace) sg.edited = null;
+      sg.state = "accepted";
+    } else {
+      const ta = document.createElement("textarea");
+      ta.rows = 3;
+      ta.value = sg.edited ?? sg.replace;
+      card.querySelector(".sg-diff").after(ta);
+      btn.textContent = "Save";
+      ta.focus();
+      return;
+    }
+  }
+  renderReview();
+});
+$("acceptAll").onclick = () => { review?.suggestions.forEach((x) => (x.state = "accepted")); renderReview(); };
+$("skipAll").onclick = () => { review?.suggestions.forEach((x) => (x.state = "skipped")); renderReview(); };
+$("closeSuggestions").onclick = closeReview;
+$("analyzeBtn").onclick = analyze;
+
+$("applyBtn").onclick = async () => {
+  if (busy || !review) return;
+  const accepted = review.suggestions.filter((x) => x.state === "accepted");
+  if (!accepted.length) return;
+  setBusy(true, "Applying suggestions…");
+  const snapshot = review;
+  try {
+    const res = await fetch(`/api/resumes/${state.id}/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: review.version,
+        replacements: accepted.map((x) => ({ find: x.find, replace: x.edited ?? x.replace, title: x.title })),
+      }),
+    });
+    await streamJson(res, (evt) => {
+      progressHandler(evt);
+      if (evt.type === "done") {
+        closeReview();
+        state = evt.state;
+        render(evt.tex);
+        if (evt.skipped) addMessage("error", `${evt.skipped} suggestion${evt.skipped > 1 ? "s" : ""} no longer matched and were skipped.`);
+        setView("diff");
+      }
+      if (evt.type === "error") {
+        addMessage("error", evt.message, null, true, evt.log);
+        review = snapshot;
+        renderReview();
+      }
+    });
+  } catch (err) {
+    addMessage("error", err.message);
+    review = snapshot;
+    renderReview();
+  } finally {
+    setBusy(false);
+  }
+};
+
+// ---------- Changes (diff) view ----------
+
+let diffForVersion = null;
+function fillDiffSelectors() {
+  if (!state) return;
+  const versionChanged = diffForVersion !== state.current;
+  diffForVersion = state.current;
+  for (const id of ["diffFrom", "diffTo"]) {
+    const sel = $(id);
+    const prev = sel.value;
+    sel.innerHTML = "";
+    for (const v of state.versions) sel.append(new Option(`v${v.n} · ${v.label}`, v.n));
+    sel.value = prev && state.versions.some((v) => String(v.n) === prev) ? prev : "";
+  }
+  const cur = state.current;
+  $("diffTo").value = String(cur);
+  if (versionChanged || !$("diffFrom").value || Number($("diffFrom").value) >= cur) $("diffFrom").value = String(Math.max(1, cur - 1));
+}
+
+async function loadDiff() {
+  if (!state?.id || !state.current) return;
+  const from = Number($("diffFrom").value), to = Number($("diffTo").value);
+  const body = $("diffBody");
+  if (from === to) {
+    body.innerHTML = `<div class="diff-empty">Pick two different versions.</div>`;
+    $("diffStats").textContent = "";
+    return;
+  }
+  const res = await fetch(`/api/resumes/${state.id}/diff?from=${from}&to=${to}`);
+  const data = await res.json();
+  if (!res.ok) {
+    body.innerHTML = `<div class="diff-empty">${escapeHtml(data.error || "Couldn't load the diff.")}</div>`;
+    return;
+  }
+  let added = 0, removed = 0, changed = 0, html = "";
+  const CONTEXT = 2;
+  for (const h of data.hunks) {
+    if (h.type === "same") {
+      const lines = h.value.replace(/\n$/, "").split("\n");
+      if (lines.length <= CONTEXT * 2 + 1) html += `<span class="ctx">${escapeHtml(lines.join("\n"))}\n</span>`;
+      else {
+        html += `<span class="ctx">${escapeHtml(lines.slice(0, CONTEXT).join("\n"))}\n</span>`;
+        html += `<div class="fold">… ${lines.length - CONTEXT * 2} unchanged lines …</div>`;
+        html += `<span class="ctx">${escapeHtml(lines.slice(-CONTEXT).join("\n"))}\n</span>`;
+      }
+    } else if (h.type === "changed") {
+      changed++;
+      html += `<span class="ch">${h.words.map((w) => (w.added ? `<ins>${escapeHtml(w.value)}</ins>` : w.removed ? `<del>${escapeHtml(w.value)}</del>` : escapeHtml(w.value))).join("")}</span>`;
+    } else if (h.type === "removed") {
+      removed++;
+      html += `<span class="rm">${escapeHtml(h.old)}</span>`;
+    } else {
+      added++;
+      html += `<span class="ad">${escapeHtml(h.new)}</span>`;
+    }
+  }
+  if (!added && !removed && !changed) html = `<div class="diff-empty">No differences between v${from} and v${to}.</div>`;
+  body.innerHTML = html;
+  $("diffStats").textContent = `${changed} changed · ${added} added · ${removed} removed`;
+}
+$("diffFrom").onchange = loadDiff;
+$("diffTo").onchange = loadDiff;
 
 // ---------- Wiring ----------
 

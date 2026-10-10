@@ -1,8 +1,9 @@
 import express from "express";
 import multer from "multer";
 import Anthropic from "@anthropic-ai/sdk";
+import { diffLines, diffWords } from "diff";
 import { compileTex, checkTools, pdfToText, parseSynctex } from "./lib/latex.js";
-import { BACKEND, textIsUsable, convertPdf, editTex, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
+import { BACKEND, textIsUsable, convertPdf, editTex, analyzeTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
 import * as store from "./lib/store.js";
 import { authEnabled, requireAuth, login, logout } from "./lib/auth.js";
 
@@ -141,6 +142,62 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
   res.end();
 });
 
+// Review the current version and return suggestions for the user to accept or skip.
+app.post("/api/resumes/:id/analyze", async (req, res) => {
+  const send = ndjson(res);
+  try {
+    const meta = await store.getMeta(req.params.id);
+    if (!meta.current) throw new Error("Nothing to analyze yet.");
+    const tex = await store.getTex(meta.id, meta.current);
+    const source = await store.getSource(meta.id);
+    send({ type: "status", message: "Claude is reviewing the resume…" });
+    const result = await analyzeTex(tex, { focus: (req.body.focus || "").trim(), source, onProgress: send });
+    send({ type: "done", version: meta.current, ...result });
+  } catch (err) {
+    console.error(err);
+    send({ type: "error", message: errorMessage(err) });
+  }
+  res.end();
+});
+
+// Apply accepted suggestions (find/replace pairs, possibly user-edited) as one new version.
+app.post("/api/resumes/:id/apply", async (req, res) => {
+  const accepted = Array.isArray(req.body.replacements) ? req.body.replacements : [];
+  if (!accepted.length) return res.status(400).json({ error: "No suggestions selected." });
+  const send = ndjson(res);
+  try {
+    const meta = await store.getMeta(req.params.id);
+    if (req.body.version && Number(req.body.version) !== meta.current) {
+      throw new Error("The resume changed since this review. Run the analysis again.");
+    }
+    const tex = await store.getTex(meta.id, meta.current);
+    const { tex: edited, failed } = applyReplacements(
+      tex,
+      accepted.map((r) => ({ find: String(r.find), replace: String(r.replace), title: String(r.title || "") }))
+    );
+    if (failed.length === accepted.length) throw new Error("None of the suggestions matched the current document.");
+    const history = meta.messages.filter((m) => m.role === "user").map((m) => m.text).slice(-8);
+    const source = await store.getSource(meta.id);
+    const built = await compileWithRepair(edited, { send, history, source, fitOnePage: false });
+    const titles = accepted.filter((r) => !failed.includes(r)).map((r) => r.title || "suggestion");
+    const n = accepted.length - failed.length;
+    meta.messages.push(
+      { role: "user", text: `Accepted ${n} suggestion${n === 1 ? "" : "s"}:\n${titles.map((t) => `- ${t}`).join("\n")}` },
+      {
+        role: "assistant",
+        text: failed.length ? `Applied ${n}. ${failed.length} no longer matched the document and were skipped.` : `Applied ${n} suggestion${n === 1 ? "" : "s"}.`,
+        version: meta.versions.length + 1,
+      }
+    );
+    await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: `Applied ${n} suggestion${n === 1 ? "" : "s"}` });
+    send({ type: "done", state: publicState(meta), tex: built.tex, skipped: failed.length });
+  } catch (err) {
+    console.error(err);
+    send({ type: "error", message: errorMessage(err), log: err.log });
+  }
+  res.end();
+});
+
 // Manual LaTeX edit from the source editor. No auto-repair: report errors to the user.
 app.put("/api/resumes/:id/tex", async (req, res) => {
   try {
@@ -184,6 +241,33 @@ app.get("/api/resumes/:id/v/:n/resume.pdf", async (req, res) => {
 
 // Source <-> PDF position map for double-click sync. Versions made before SyncTeX
 // was saved get it by recompiling their .tex once.
+// Line diff between two versions, with word-level detail for changed line groups.
+app.get("/api/resumes/:id/diff", async (req, res) => {
+  try {
+    const meta = await store.getMeta(req.params.id);
+    const to = Number(req.query.to) || meta.current;
+    const from = Number(req.query.from) || Math.max(1, to - 1);
+    if (![from, to].every((n) => meta.versions.some((v) => v.n === n))) return res.status(404).json({ error: "No such version." });
+    const [a, b] = await Promise.all([store.getTex(meta.id, from), store.getTex(meta.id, to)]);
+    const parts = diffLines(a, b);
+    // Pair each removed block with the added block that follows it so the UI can show
+    // word-level changes inside modified lines.
+    const hunks = [];
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      if (p.removed && parts[i + 1]?.added) {
+        hunks.push({ type: "changed", old: p.value, new: parts[i + 1].value, words: diffWords(p.value, parts[i + 1].value) });
+        i++;
+      } else if (p.removed) hunks.push({ type: "removed", old: p.value });
+      else if (p.added) hunks.push({ type: "added", new: p.value });
+      else hunks.push({ type: "same", value: p.value });
+    }
+    res.json({ from, to, hunks });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 app.get("/api/resumes/:id/v/:n/synctex", async (req, res) => {
   try {
     const meta = await store.getMeta(req.params.id);
