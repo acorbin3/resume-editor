@@ -49,20 +49,62 @@ let timerHandle = null;
 
 // ---------- Helpers ----------
 
-function setBusy(on, text = "Working…") {
+// Every long action shows: the progress bar, a live bubble in the chat, the overlay on
+// the document, and a spinner on the button that started it (btn).
+let busyBtn = null;
+let pendingBubble = null;
+function setBusy(on, text = "Working…", btn = null) {
   busy = on;
   $("busy").hidden = !on;
-  $("busyText").textContent = text;
+  $("progress").hidden = !on;
   $("sendBtn").disabled = on;
+  $("analyzeBtn").disabled = on;
+  $("applyBtn").disabled = on || !review?.suggestions.some((x) => x.state === "accepted");
   $("recompileBtn").disabled = on || !dirty;
+  document.querySelectorAll("#chips button").forEach((b) => (b.disabled = on));
+  busyBtn?.classList.remove("btn-busy");
+  busyBtn = on ? btn : null;
+  busyBtn?.classList.add("btn-busy");
   clearInterval(timerHandle);
+  pendingBubble?.remove();
+  pendingBubble = null;
   if (on) {
+    pendingBubble = document.createElement("div");
+    pendingBubble.className = "msg assistant pending";
+    pendingBubble.innerHTML = `<span class="dots"><i></i><i></i><i></i></span><span class="ptext"></span><span class="elapsed"></span>`;
+    $("messages").append(pendingBubble);
+    $("messages").scrollTop = $("messages").scrollHeight;
     const start = Date.now();
     $("busyTimer").textContent = "";
     timerHandle = setInterval(() => {
-      $("busyTimer").textContent = `${Math.round((Date.now() - start) / 1000)}s`;
+      const t = `${Math.round((Date.now() - start) / 1000)}s`;
+      $("busyTimer").textContent = t;
+      if (pendingBubble) pendingBubble.querySelector(".elapsed").textContent = t;
     }, 1000);
+    startPhrases();
+  } else {
+    clearInterval(phraseTimer);
   }
+  setBusyText(text);
+}
+
+const PHRASES = ["Thinking…", "Cooking…", "Reading between the lines…", "Weighing every bullet…", "Hunting for orphan words…", "Polishing…", "Counting the metrics…", "Tightening the wording…", "Typesetting…", "Almost there…"];
+let lastStatusAt = 0;
+let phraseTimer = null;
+function setBusyText(text, fromServer = true) {
+  if (fromServer) lastStatusAt = Date.now();
+  $("busyText").textContent = text;
+  if (pendingBubble) pendingBubble.querySelector(".ptext").textContent = text;
+}
+// When no real status has arrived for a while, cycle through friendlier phrases.
+function startPhrases() {
+  clearInterval(phraseTimer);
+  let i = Math.floor(Math.random() * PHRASES.length);
+  phraseTimer = setInterval(() => {
+    if (!busy) return clearInterval(phraseTimer);
+    if (Date.now() - lastStatusAt < 7000) return;
+    setBusyText(PHRASES[i++ % PHRASES.length], false);
+  }, 3500);
 }
 
 function showView(name) {
@@ -72,6 +114,99 @@ function showView(name) {
 }
 
 // Read a newline-delimited JSON stream, calling onEvent for each event.
+// Run a long action. Events stream in; if the connection drops (phone locked, app
+// switched), the job keeps running on the server and we poll it to completion. The job id
+// is remembered so a reload can pick the job up again.
+async function runJob(url, init, onEvent, memoryKey) {
+  let jobId = null;
+  const handle = (evt) => {
+    if (evt.type === "job") {
+      jobId = evt.id;
+      remember(memoryKey, jobId);
+      return;
+    }
+    if (evt.type === "ping") return;
+    if (evt.type === "done" || evt.type === "error") forget(memoryKey);
+    onEvent(evt);
+  };
+  try {
+    const res = await fetch(url, init);
+    await streamJson(res, handle);
+  } catch (err) {
+    if (!jobId || !isNetworkError(err)) throw err;
+    setBusyText("Connection dropped, reconnecting…");
+    await pollJob(jobId, handle);
+  }
+}
+
+async function pollJob(jobId, onEvent) {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 3000));
+    let job;
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      if (res.status === 404) throw new Error("The server lost track of that job (it may have restarted). Reload to see where things stand.");
+      job = await res.json();
+    } catch (err) {
+      if (isNetworkError(err)) continue; // still offline; keep trying
+      throw err;
+    }
+    if (job.status === "running") {
+      if (job.lastStatus) setBusyText(job.lastStatus);
+      continue;
+    }
+    onEvent(job.result);
+    return;
+  }
+}
+
+const isNetworkError = (err) => err instanceof TypeError || /load failed|failed to fetch|network/i.test(err?.message || "");
+const remember = (key, id) => { try { if (key) sessionStorage.setItem(key, id); } catch {} };
+const forget = (key) => { try { if (key) sessionStorage.removeItem(key); } catch {} };
+
+// After a reload: if a job was running for this resume, reattach to it.
+async function resumePendingJob(resumeId) {
+  const key = `job:${resumeId}`;
+  let jobId = null;
+  try { jobId = sessionStorage.getItem(key); } catch {}
+  if (!jobId) {
+    const active = await fetch(`/api/jobs/active?resume=${resumeId}`).then((r) => r.json()).catch(() => null);
+    jobId = active?.id || null;
+  }
+  if (!jobId) return;
+  const job = await fetch(`/api/jobs/${jobId}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (!job) return forget(key);
+  if (job.status !== "running") {
+    forget(key);
+    // A finished edit is already in the version list; a finished analysis is restored from the saved review.
+    return;
+  }
+  setBusy(true, job.lastStatus || "Picking up where it left off…");
+  try {
+    await pollJob(jobId, (evt) => {
+      forget(key);
+      if (evt.type === "done") applyJobResult(job.kind, evt);
+      if (evt.type === "error") addMessage("error", evt.message, null, true, evt.log);
+    });
+  } catch (err) {
+    addMessage("error", explainError(err));
+  } finally {
+    setBusy(false);
+  }
+}
+
+function applyJobResult(kind, evt) {
+  if (kind === "analyze") {
+    review = { version: evt.version, summary: evt.summary, suggestions: evt.suggestions.map((sg) => ({ ...sg, state: "pending", edited: null })) };
+    renderReview();
+    locateSuggestions();
+  } else if (evt.state) {
+    state = evt.state;
+    render(evt.tex);
+    if (isMobile()) setPanel("pdf");
+  }
+}
+
 async function streamJson(res, onEvent) {
   if (!res.ok && !res.headers.get("content-type")?.includes("ndjson")) {
     const body = await res.json().catch(() => ({}));
@@ -93,9 +228,19 @@ async function streamJson(res, onEvent) {
   }
 }
 
+// fetch() rejects with a bare "Load failed" (Safari) or "Failed to fetch" (Chrome) when the
+// connection drops, which on a phone usually means the screen locked or the app was
+// switched away mid-request. The server keeps working; a reload shows the result.
+function explainError(err) {
+  if (err instanceof TypeError || /load failed|failed to fetch|network/i.test(err.message || "")) {
+    return "The connection dropped before Claude finished (this happens on phones when the screen locks or you switch apps). The work usually completes on the server anyway: tap Reload to check.";
+  }
+  return err.message || String(err);
+}
+
 function progressHandler(evt) {
-  if (evt.type === "status") $("busyText").textContent = evt.message;
-  if (evt.type === "writing") $("busyText").textContent = `Claude is writing… (${evt.chars.toLocaleString()} chars)`;
+  if (evt.type === "status") setBusyText(evt.message);
+  if (evt.type === "writing") setBusyText(`Claude is writing… (${evt.chars.toLocaleString()} chars)`);
 }
 
 // ---------- Rendering ----------
@@ -143,7 +288,7 @@ function render(tex) {
     li.className = x.n === v ? "current" : "";
     const b = document.createElement("button");
     b.textContent = `v${x.n} · ${x.label}`;
-    b.title = x.label;
+    b.title = x.n === v ? x.label : `Restore v${x.n} as a new version`;
     b.onclick = () => selectVersion(x.n);
     li.append(b);
     list.append(li);
@@ -164,6 +309,14 @@ function addMessage(role, text, version, scroll = true, log) {
     const pre = document.createElement("pre");
     pre.textContent = log;
     el.append(pre);
+  }
+  if (role === "error" && /tap Reload/.test(text)) {
+    const b = document.createElement("button");
+    b.className = "btn small";
+    b.textContent = "Reload";
+    b.style.marginTop = "6px";
+    b.onclick = () => location.reload();
+    el.append(document.createElement("br"), b);
   }
   $("messages").append(el);
   if (scroll) $("messages").scrollTop = $("messages").scrollHeight;
@@ -189,6 +342,17 @@ async function openResume(id) {
   render(data.tex);
   if (!data.versions.length) {
     addMessage("error", "This resume never finished converting. Upload the PDF again.");
+  }
+  resumePendingJob(id);
+  // Bring back an analysis that finished after the connection dropped (or from last time).
+  if (data.review?.suggestions?.length) {
+    review = {
+      version: data.review.version,
+      summary: data.review.summary,
+      suggestions: data.review.suggestions.map((sg) => ({ ...sg, state: "pending", edited: null })),
+    };
+    renderReview();
+    locateSuggestions();
   }
 }
 
@@ -233,11 +397,10 @@ async function convert(file) {
   $("versionList").innerHTML = "";
   showView("editor");
   addMessage("user", `Uploaded ${file.name}`);
-  setBusy(true, "Uploading…");
+  setBusy(true, "Uploading…", $("convertBtn"));
 
   try {
-    const res = await fetch("/api/resumes", { method: "POST", body: form });
-    await streamJson(res, (evt) => {
+    await runJob("/api/resumes", { method: "POST", body: form }, (evt) => {
       progressHandler(evt);
       if (evt.type === "created") {
         state.id = evt.id;
@@ -255,7 +418,7 @@ async function convert(file) {
       }
     });
   } catch (err) {
-    addMessage("error", err.message);
+    addMessage("error", explainError(err));
   } finally {
     setBusy(false);
     refreshPicker(state?.id);
@@ -271,7 +434,9 @@ function composePrompt(typed) {
   return `${head}Comments on highlighted text in the PDF. Find the matching text in the LaTeX source (it may differ slightly because of escaping or line breaks) and apply each change:\n${lines.join("\n")}`;
 }
 
-async function applyPrompt(typed) {
+let promptSourceBtn = null;
+async function applyPrompt(typed, sourceBtn = null) {
+  promptSourceBtn = sourceBtn;
   if (busy || !state?.id || !state.current) return;
   if (dirty) {
     addMessage("error", "You have unsaved LaTeX edits. Recompile them (⌘S) first so Claude works from your latest version.");
@@ -283,14 +448,13 @@ async function applyPrompt(typed) {
   $("promptInput").value = "";
   const sentComments = comments;
   setComments([]);
-  setBusy(true, "Claude is editing…");
+  setBusy(true, "Claude is editing…", promptSourceBtn || $("sendBtn"));
   try {
-    const res = await fetch(`/api/resumes/${state.id}/edit`, {
+    await runJob(`/api/resumes/${state.id}/edit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
-    });
-    await streamJson(res, (evt) => {
+    }, (evt) => {
       progressHandler(evt);
       if (evt.type === "done") {
         state = evt.state;
@@ -301,9 +465,9 @@ async function applyPrompt(typed) {
         addMessage("error", evt.message, null, true, evt.log);
         setComments(sentComments); // keep them so the user can retry
       }
-    });
+    }, `job:${state.id}`);
   } catch (err) {
-    addMessage("error", err.message);
+    addMessage("error", explainError(err));
     setComments(sentComments);
   } finally {
     setBusy(false);
@@ -312,7 +476,7 @@ async function applyPrompt(typed) {
 
 async function recompile() {
   if (busy || !state?.id || !dirty) return;
-  setBusy(true, "Compiling…");
+  setBusy(true, "Compiling…", $("recompileBtn"));
   try {
     const res = await fetch(`/api/resumes/${state.id}/tex`, {
       method: "PUT",
@@ -749,14 +913,13 @@ async function analyze() {
     return;
   }
   const focus = $("promptInput").value.trim();
-  setBusy(true, "Claude is reviewing the resume…");
+  setBusy(true, "Claude is reviewing the resume…", $("analyzeBtn"));
   try {
-    const res = await fetch(`/api/resumes/${state.id}/analyze`, {
+    await runJob(`/api/resumes/${state.id}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ focus }),
-    });
-    await streamJson(res, (evt) => {
+    }, (evt) => {
       progressHandler(evt);
       if (evt.type === "done") {
         review = {
@@ -769,9 +932,9 @@ async function analyze() {
         locateSuggestions();
       }
       if (evt.type === "error") addMessage("error", evt.message);
-    });
+    }, `job:${state.id}`);
   } catch (err) {
-    addMessage("error", err.message);
+    addMessage("error", explainError(err));
   } finally {
     setBusy(false);
   }
@@ -886,18 +1049,17 @@ $("applyBtn").onclick = async () => {
   if (busy || !review) return;
   const accepted = review.suggestions.filter((x) => x.state === "accepted");
   if (!accepted.length) return;
-  setBusy(true, "Applying suggestions…");
+  setBusy(true, "Applying suggestions…", $("applyBtn"));
   const snapshot = review;
   try {
-    const res = await fetch(`/api/resumes/${state.id}/apply`, {
+    await runJob(`/api/resumes/${state.id}/apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         version: review.version,
         replacements: accepted.map((x) => ({ find: x.find, replace: x.edited ?? x.replace, title: x.title })),
       }),
-    });
-    await streamJson(res, (evt) => {
+    }, (evt) => {
       progressHandler(evt);
       if (evt.type === "done") {
         closeReview();
@@ -912,9 +1074,9 @@ $("applyBtn").onclick = async () => {
         review = snapshot;
         renderReview();
       }
-    });
+    }, `job:${state.id}`);
   } catch (err) {
-    addMessage("error", err.message);
+    addMessage("error", explainError(err));
     review = snapshot;
     renderReview();
   } finally {
@@ -1079,7 +1241,7 @@ $("promptInput").onkeydown = (e) => {
 $("chips").onclick = (e) => {
   const b = e.target.closest("button");
   if (!b) return;
-  if (b.dataset.prompt) applyPrompt(b.dataset.prompt);
+  if (b.dataset.prompt) applyPrompt(b.dataset.prompt, b);
   if (b.dataset.fill) {
     $("promptInput").value = b.dataset.fill;
     $("promptInput").focus();

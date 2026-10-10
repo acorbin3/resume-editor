@@ -8,6 +8,7 @@ import * as store from "./lib/store.js";
 import { signupOpen, requireAuth, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
 import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
 import { compileLane, claudeLane, queueStats } from "./lib/queue.js";
+import { createJob, recordEvent, getJob, activeJob, publicJob } from "./lib/jobs.js";
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";
@@ -41,11 +42,23 @@ app.use("/vendor/pdfjs-web", express.static("node_modules/pdfjs-dist/web"));
 const upload = multer({ limits: { fileSize: 20 * 1024 * 1024 } });
 
 // Long-running calls stream newline-delimited JSON progress events, ending in "done" or "error".
-function ndjson(res) {
+// Events go to the client and into the job record, so a dropped connection can be
+// resumed by polling. A ping every 10s keeps proxies and mobile browsers from timing out.
+function ndjson(res, job) {
   res.setHeader("Content-Type", "application/x-ndjson");
   res.setHeader("Cache-Control", "no-cache");
   res.flushHeaders();
-  return (evt) => res.write(JSON.stringify(evt) + "\n");
+  const write = (evt) => {
+    if (!res.writableEnded && !res.destroyed) res.write(JSON.stringify(evt) + "\n");
+  };
+  write({ type: "job", id: job.id });
+  const ping = setInterval(() => write({ type: "ping" }), 10_000);
+  res.on("close", () => clearInterval(ping));
+  return (evt) => {
+    recordEvent(job, evt);
+    write(evt);
+    if (evt.type === "done" || evt.type === "error") clearInterval(ping);
+  };
 }
 
 function errorMessage(err) {
@@ -132,7 +145,16 @@ app.delete("/api/resumes/:id", async (req, res) => {
 app.get("/api/resumes/:id", async (req, res) => {
   try {
     const meta = await store.getMeta(req.user.id, req.params.id);
-    res.json({ ...publicState(meta), tex: meta.current ? await store.getTex(meta, meta.current) : "" });
+    // Always open on the newest version.
+    const latest = meta.versions.at(-1)?.n || 0;
+    if (meta.current !== latest) store.setCurrent(meta, latest);
+    const review = store.getReview(meta);
+    res.json({
+      ...publicState(meta),
+      tex: meta.current ? await store.getTex(meta, meta.current) : "",
+      // A saved analysis is only offered while it still matches the version on screen.
+      review: review && review.version === meta.current ? review : null,
+    });
   } catch (err) {
     res.status(err.status || 500).json({ error: errorMessage(err) });
   }
@@ -142,13 +164,15 @@ app.get("/api/resumes/:id", async (req, res) => {
 app.post("/api/resumes", upload.single("pdf"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Attach a PDF." });
   if (!req.file.originalname.toLowerCase().endsWith(".pdf")) return res.status(400).json({ error: "Only PDF files are supported." });
-  const send = ndjson(res);
+  const job = createJob(req.user.id, null, "convert");
+  const send = ndjson(res, job);
   const instructions = (req.body.instructions || "").trim();
   const fitOnePage = req.body.onePage !== "false";
   let meta;
   try {
     const text = await pdfToText(req.file.buffer);
     meta = await store.createResume(req.user.id, req.file.buffer, req.file.originalname, text);
+    job.resumeId = meta.id;
     send({ type: "created", id: meta.id });
     const source = { text, pdf: req.file.buffer };
     send({ type: "status", message: textIsUsable(text) ? "Claude is converting the resume text…" : "No usable text in the PDF, Claude is reading the PDF itself…" });
@@ -175,7 +199,7 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
   if (!prompt) return res.status(400).json({ error: "Enter a change to make." });
   const meta = lookup(req, res);
   if (!meta) return;
-  const send = ndjson(res);
+  const send = ndjson(res, createJob(req.user.id, meta.id, "edit"));
   try {
     const tex = await store.getTex(meta, meta.current);
     const history = meta.messages.filter((m) => m.role === "user").map((m) => m.text).slice(-8);
@@ -199,7 +223,7 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
 app.post("/api/resumes/:id/analyze", async (req, res) => {
   const meta = lookup(req, res);
   if (!meta) return;
-  const send = ndjson(res);
+  const send = ndjson(res, createJob(req.user.id, meta.id, "analyze"));
   try {
     if (!meta.current) throw new Error("Nothing to analyze yet.");
     const tex = await store.getTex(meta, meta.current);
@@ -207,6 +231,7 @@ app.post("/api/resumes/:id/analyze", async (req, res) => {
     send({ type: "status", message: "Claude is reviewing the resume…" });
     const result = await claudeLane.run(() => analyzeTex(tex, { focus: (req.body.focus || "").trim(), source, onProgress: send }), (pos) => send({ type: "status", message: `Waiting for Claude (${pos} ahead)…` }));
     track(req.user.id, "resume_analyzed", { suggestions: result.suggestions.length, dropped: result.dropped, backend: BACKEND });
+    store.saveReview(meta, meta.current, result);
     send({ type: "done", version: meta.current, ...result });
   } catch (err) {
     console.error(err);
@@ -222,7 +247,7 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
   if (!accepted.length) return res.status(400).json({ error: "No suggestions selected." });
   const meta = lookup(req, res);
   if (!meta) return;
-  const send = ndjson(res);
+  const send = ndjson(res, createJob(req.user.id, meta.id, "apply"));
   try {
     if (req.body.version && Number(req.body.version) !== meta.current) {
       throw new Error("The resume changed since this review. Run the analysis again.");
@@ -247,6 +272,7 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
       }
     ]);
     await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: `Applied ${n} suggestion${n === 1 ? "" : "s"}` });
+    store.clearReview(meta);
     track(req.user.id, "suggestions_applied", { accepted: n, skipped: failed.length });
     send({ type: "done", state: publicState(meta), tex: built.tex, skipped: failed.length });
   } catch (err) {
@@ -255,6 +281,17 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
     send({ type: "error", message: errorMessage(err), log: err.log });
   }
   res.end();
+});
+
+// Poll a job whose stream was lost, or find the one still running for a resume.
+app.get("/api/jobs/active", (req, res) => {
+  const job = activeJob(req.user.id, req.query.resume || null);
+  res.json(job ? publicJob(job) : null);
+});
+app.get("/api/jobs/:id", (req, res) => {
+  const job = getJob(req.user.id, req.params.id);
+  if (!job) return res.status(404).json({ error: "No such job." });
+  res.json(publicJob(job));
 });
 
 // Manual LaTeX edit from the source editor. No auto-repair: report errors to the user.
@@ -272,14 +309,17 @@ app.put("/api/resumes/:id/tex", async (req, res) => {
   }
 });
 
-// Point "current" at an earlier version.
+// Go back to an earlier version: it's copied forward as a new version.
 app.post("/api/resumes/:id/current", async (req, res) => {
   try {
     const meta = await store.getMeta(req.user.id, req.params.id);
     const n = Number(req.body.version);
     if (!meta.versions.some((v) => v.n === n)) return res.status(400).json({ error: "No such version." });
-    store.setCurrent(meta, n);
-    res.json({ state: publicState(meta), tex: await store.getTex(meta, n) });
+    if (n !== meta.versions.at(-1).n) {
+      await store.restoreVersion(meta, n);
+      store.addMessages(meta, [{ role: "user", text: `Restored version ${n}` }, { role: "assistant", text: `Version ${n} is back as the newest version.`, version: meta.current }]);
+    }
+    res.json({ state: publicState(meta), tex: await store.getTex(meta, meta.current) });
   } catch (err) {
     res.status(err.status || 500).json({ error: errorMessage(err) });
   }
