@@ -15,7 +15,11 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --omit=optional --ignore-scripts \
- && rm -rf node_modules/pdfjs-dist/legacy node_modules/pdfjs-dist/image_decoders
+ # pdfjs: the browser loads only pdf.min.mjs, pdf.worker.min.mjs, and web/pdf_viewer.css
+ && rm -rf node_modules/pdfjs-dist/legacy node_modules/pdfjs-dist/image_decoders \
+ && find node_modules/pdfjs-dist/build -type f ! -name "*.min.mjs" -delete \
+ # type definitions, source maps, and docs aren't needed at runtime
+ && find node_modules \( -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.map" -o -name "*.md" -o -name "*.markdown" \) -type f -delete
 
 # --- Stage 3: runtime ---
 FROM node:24-alpine
@@ -26,7 +30,9 @@ ENV NODE_ENV=production \
     PORT=3000 \
     XDG_CACHE_HOME=/opt/tectonic-cache
 
-RUN apk add --no-cache poppler-utils git curl
+RUN apk add --no-cache poppler-utils git curl \
+ # npm and corepack aren't used at runtime
+ && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn*
 
 # tectonic: static musl binary from the GitHub release, picked by architecture
 RUN set -eux; \
