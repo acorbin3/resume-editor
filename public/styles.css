@@ -238,11 +238,9 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
   background: var(--text); color: var(--bg); font-weight: 600; font-size: 14px;
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.3); animation: toast-in 0.25s ease-out;
 }
-.toast.working { background: var(--accent); color: var(--accent-text); }
 .toast.done { background: #15803d; color: #fff; }
 .toast.error { background: #b91c1c; color: #fff; }
 .toast .t-ico { font-size: 18px; line-height: 1; }
-.toast .t-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 0.4); border-top-color: #fff; animation: spin 0.8s linear infinite; flex: none; }
 .toast.out { animation: toast-out 0.3s ease-in forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-14px) scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(-10px); } }

@@ -56,11 +56,10 @@ let timerHandle = null;
 
 // Toasts: start/finish confirmations that are visible from any panel. A "working" toast
 // stays until replaced or dismissed; others fade after a few seconds.
-let workingToast = null;
 function toast(text, kind = "done", ms = 3500) {
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
-  const ico = kind === "working" ? `<span class="t-spin"></span>` : `<span class="t-ico">${kind === "error" ? "⚠️" : "✅"}</span>`;
+  const ico = `<span class="t-ico">${kind === "error" ? "⚠️" : "✅"}</span>`;
   el.innerHTML = `${ico}<span></span>`;
   el.lastChild.textContent = text;
   $("toasts").append(el);
@@ -68,18 +67,9 @@ function toast(text, kind = "done", ms = 3500) {
     el.classList.add("out");
     setTimeout(() => el.remove(), 300);
   };
-  if (kind === "working") {
-    workingToast?.remove();
-    workingToast = el;
-  } else {
-    setTimeout(remove, ms);
-    if (navigator.vibrate) navigator.vibrate(kind === "error" ? [40, 60, 40] : 25);
-  }
+  setTimeout(remove, ms);
+  if (navigator.vibrate) navigator.vibrate(kind === "error" ? [40, 60, 40] : 25);
   return remove;
-}
-function clearWorkingToast() {
-  workingToast?.remove();
-  workingToast = null;
 }
 
 // Every long action shows: the progress bar, a live bubble in the chat, the overlay on
@@ -98,8 +88,6 @@ function setBusy(on, text = "Working…", btn = null) {
   busyBtn?.classList.remove("btn-busy");
   busyBtn = on ? btn : null;
   busyBtn?.classList.add("btn-busy");
-  if (on) toast(text, "working");
-  else clearWorkingToast();
   $("suggestions").classList.toggle("working", on && btn === $("applyBtn"));
   if (on && btn === $("applyBtn")) $("suggestions").dataset.working = text;
   clearInterval(timerHandle);
@@ -178,7 +166,6 @@ function setBusyText(text, fromServer = true) {
       $("messages").scrollTop = $("messages").scrollHeight;
     }
   }
-  if (workingToast) workingToast.lastChild.textContent = text;
   if ($("suggestions").classList.contains("working")) $("suggestions").dataset.working = text;
 }
 // When no real status has arrived for a while, cycle through friendlier phrases.
