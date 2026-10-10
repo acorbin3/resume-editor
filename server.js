@@ -57,6 +57,16 @@ function errorMessage(err) {
   return err.message || String(err);
 }
 
+// Owner-scoped lookup that answers 404 itself; for routes that stream afterwards.
+function lookup(req, res) {
+  try {
+    return store.getMeta(req.user.id, req.params.id);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: errorMessage(err) });
+    return null;
+  }
+}
+
 function publicState(meta) {
   return { id: meta.id, name: meta.name, current: meta.current, versions: meta.versions, messages: meta.messages };
 }
@@ -112,7 +122,7 @@ app.patch("/api/resumes/:id", (req, res) => {
 
 app.delete("/api/resumes/:id", async (req, res) => {
   try {
-    await store.deleteResume(req.user.id, req.params.id);
+    if (!(await store.deleteResume(req.user.id, req.params.id))) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });
   } catch (err) {
     res.status(err.status || 500).json({ error: errorMessage(err) });
@@ -163,9 +173,10 @@ app.post("/api/resumes", upload.single("pdf"), async (req, res) => {
 app.post("/api/resumes/:id/edit", async (req, res) => {
   const prompt = (req.body.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Enter a change to make." });
+  const meta = lookup(req, res);
+  if (!meta) return;
   const send = ndjson(res);
   try {
-    const meta = await store.getMeta(req.user.id, req.params.id);
     const tex = await store.getTex(meta, meta.current);
     const history = meta.messages.filter((m) => m.role === "user").map((m) => m.text).slice(-8);
     const source = await store.getSource(meta);
@@ -186,9 +197,10 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
 
 // Review the current version and return suggestions for the user to accept or skip.
 app.post("/api/resumes/:id/analyze", async (req, res) => {
+  const meta = lookup(req, res);
+  if (!meta) return;
   const send = ndjson(res);
   try {
-    const meta = await store.getMeta(req.user.id, req.params.id);
     if (!meta.current) throw new Error("Nothing to analyze yet.");
     const tex = await store.getTex(meta, meta.current);
     const source = await store.getSource(meta);
@@ -208,9 +220,10 @@ app.post("/api/resumes/:id/analyze", async (req, res) => {
 app.post("/api/resumes/:id/apply", async (req, res) => {
   const accepted = Array.isArray(req.body.replacements) ? req.body.replacements : [];
   if (!accepted.length) return res.status(400).json({ error: "No suggestions selected." });
+  const meta = lookup(req, res);
+  if (!meta) return;
   const send = ndjson(res);
   try {
-    const meta = await store.getMeta(req.user.id, req.params.id);
     if (req.body.version && Number(req.body.version) !== meta.current) {
       throw new Error("The resume changed since this review. Run the analysis again.");
     }
@@ -255,7 +268,7 @@ app.put("/api/resumes/:id/tex", async (req, res) => {
     await store.addVersion(meta, { tex, pdf: result.pdf, synctex: result.synctex, pages: result.pages, label: "Manual LaTeX edit" });
     res.json({ state: publicState(meta), tex });
   } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
+    res.status(err.status || 500).json({ error: errorMessage(err) });
   }
 });
 
@@ -268,7 +281,7 @@ app.post("/api/resumes/:id/current", async (req, res) => {
     store.setCurrent(meta, n);
     res.json({ state: publicState(meta), tex: await store.getTex(meta, n) });
   } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
+    res.status(err.status || 500).json({ error: errorMessage(err) });
   }
 });
 
@@ -312,7 +325,7 @@ app.get("/api/resumes/:id/diff", async (req, res) => {
     }
     res.json({ from, to, hunks });
   } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
+    res.status(err.status || 500).json({ error: errorMessage(err) });
   }
 });
 
@@ -330,7 +343,7 @@ app.get("/api/resumes/:id/v/:n/synctex", async (req, res) => {
     }
     res.json(parseSynctex(gz));
   } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
+    res.status(err.status || 500).json({ error: errorMessage(err) });
   }
 });
 
