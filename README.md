@@ -61,7 +61,31 @@ Needs Node 22+. Without an API key it shells out to [Claude Code](https://claude
 6. **Versions and Changes**: every change is saved. Click any version to go back to it, and the Changes tab
    shows a word-level diff between any two versions. Download the PDF or `.tex`.
 
-Data lives in `data/<id>/` (source PDF, `vN.tex`, `vN.pdf`, `meta.json`).
+## Accounts and storage
+
+Everyone gets their own account (email + password, or Google sign-in when configured) and only sees
+their own resumes. Sign-up is open by default; set `SIGNUP_CODE` to require an invite code or
+`ALLOW_SIGNUP=false` to close it.
+
+Under `data/`:
+- `app.db`: SQLite (users, sessions, resumes, version index, chat log, usage).
+- `repos/<id>/`: a git repository per resume. Every saved version is one commit, made automatically,
+  with the version label as the message. Reverting is pointing "current" at an older version.
+- `blobs/`: content-addressed store for uploaded PDFs, rendered PDFs, and SyncTeX files.
+
+Compiles and Claude calls run through small in-process queues (`COMPILE_CONCURRENCY`,
+`CLAUDE_CONCURRENCY`). Each of these pieces sits behind a small module (`lib/db.js`, `lib/repo.js`,
+`lib/blobs.js`, `lib/queue.js`) so Postgres, S3, or a Redis queue can replace them without touching the routes.
+
+Upgrading from the pre-database layout: create your account in the app, then
+`npm run migrate -- you@example.com` imports the old `data/<uuid>/` folders.
+
+## Monitoring
+
+- `GET /healthz` (no login) returns 200 when tectonic and poppler are present, 503 otherwise; point an
+  uptime monitor at it.
+- Set `POSTHOG_KEY` to send product events (sign-ups, conversions, edits, analyses, downloads, server
+  errors) to PostHog. Users are identified by account id only; resume content is never sent.
 
 ## Files
 
@@ -81,12 +105,14 @@ Data lives in `data/<id>/` (source PDF, `vN.tex`, `vN.pdf`, `meta.json`).
 - `CLAUDE_EFFORT`: `low` | `medium` (default) | `high`. Higher means better conversions but slower.
 - `PORT`: default 3000 (this machine uses 4747).
 - `HOST`: default `127.0.0.1`. The server only listens locally; put a reverse proxy in front to expose it.
-- `APP_PASSWORD`: login password. If unset, there's no login (local use only).
-- `SESSION_SECRET`: signs login cookies. Changing it signs everyone out.
+- `SIGNUP_CODE` / `ALLOW_SIGNUP`: control who can create an account.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `APP_URL`: enable "Continue with Google".
+- `POSTHOG_KEY` / `POSTHOG_HOST`: product analytics.
+- `DATA_DIR`: where the database, repos, and blobs live (default `./data`).
 
 ## Running it as a service (macOS)
 
-1. Set `APP_PASSWORD` and `SESSION_SECRET` in `.env` (`openssl rand -hex 32` makes a good secret).
+1. Set `SIGNUP_CODE` in `.env` so strangers can't create accounts.
 2. Copy `deploy/resume-editor.plist.example` to `~/Library/LaunchAgents/`, fill in the paths, and load it:
    `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.resume-editor.plist`
    Restart after code or `.env` changes: `launchctl kickstart -k gui/$(id -u)/com.example.resume-editor`

@@ -106,6 +106,7 @@ function render(tex) {
   const ver = state.versions.find((x) => x.n === v);
 
   $("downloads").hidden = !v;
+  $("renameBtn").hidden = !state.id;
   if (v) {
     const base = `/api/resumes/${state.id}/v/${v}`;
     $("dlPdf").href = `${base}/resume.pdf?download=1`;
@@ -195,6 +196,7 @@ function newResume() {
   history.replaceState(null, "", location.pathname);
   $("resumePicker").value = "";
   $("downloads").hidden = true;
+  $("renameBtn").hidden = true;
   showView("upload");
 }
 
@@ -339,6 +341,7 @@ function setView(name) {
   } catch {}
   if (name !== "pdf") editor.view.requestMeasure();
   if (name === "diff") loadDiff();
+  ph?.capture("view_changed", { view: name });
 }
 
 const currentView = () => $("panes").className.match(/view-(\w+)/)?.[1] || "pdf";
@@ -462,6 +465,8 @@ async function doRenderPdf(src) {
     return;
   }
   if (token !== renderToken) return;
+  // Hidden pane (another view is active): skip, the ResizeObserver re-renders when shown.
+  if (viewer.clientWidth < 100) return;
   const width = Math.min(viewer.clientWidth - 32, 1100);
   const dpr = window.devicePixelRatio || 1;
   const pages = [];
@@ -508,7 +513,11 @@ let resizeTimer;
 let lastWidth = 0;
 new ResizeObserver(([entry]) => {
   const w = Math.round(entry.contentRect.width);
-  if (!w || Math.abs(w - lastWidth) < 8) return;
+  if (!w) {
+    lastWidth = 0; // hidden; re-render on the next visible width
+    return;
+  }
+  if (Math.abs(w - lastWidth) < 8) return;
   lastWidth = w;
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => renderedSrc && renderPdf(renderedSrc), 150);
@@ -516,6 +525,29 @@ new ResizeObserver(([entry]) => {
 
 function drawHighlights() {
   document.querySelectorAll(".hl-layer").forEach((l) => (l.innerHTML = ""));
+  // Suggestion boxes (from SyncTeX), numbered S1, S2… and colored by state.
+  for (const sg of review?.suggestions || []) {
+    if (!sg.box || sg.state === "skipped") continue;
+    const pageDiv = document.querySelector(`.pdf-page[data-page="${sg.box.page}"]`);
+    if (!pageDiv) continue;
+    const scale = Number(pageDiv.dataset.scale);
+    const el = document.createElement("div");
+    el.className = `hl sg-hl ${sg.state}`;
+    el.dataset.sg = sg.id;
+    el.title = sg.title;
+    const left = Math.max(sg.box.left, 0);
+    Object.assign(el.style, {
+      left: `${left * scale}px`,
+      top: `${(sg.box.top - 1) * scale}px`,
+      width: `${(Math.min(sg.box.right, pageDiv.offsetWidth / scale) - left) * scale}px`,
+      height: `${(sg.box.bottom - sg.box.top + 2) * scale}px`,
+    });
+    const n = document.createElement("span");
+    n.className = "hl-num sg-num";
+    n.textContent = `S${sg.id}`;
+    el.append(n);
+    pageDiv.querySelector(".hl-layer").append(el);
+  }
   comments.forEach((c, i) => {
     const layer = document.querySelector(`.pdf-page[data-page="${c.page}"] .hl-layer`);
     if (!layer) return;
@@ -614,6 +646,14 @@ $("pdfViewer").addEventListener("mouseup", (e) => {
     if (selection) openPopover(selection);
   }, 0);
 });
+$("pdfViewer").addEventListener("click", (e) => {
+  const hl = e.target.closest(".sg-hl");
+  if (!hl) return;
+  const card = document.querySelector(`.sg[data-id="${hl.dataset.sg}"]`);
+  card?.scrollIntoView({ behavior: "smooth", block: "center" });
+  card?.classList.add("flash");
+  setTimeout(() => card?.classList.remove("flash"), 1200);
+});
 $("pdfViewer").addEventListener("dblclick", (e) => {
   const pageDiv = e.target.closest(".pdf-page");
   if (!pageDiv) return;
@@ -630,6 +670,7 @@ $("popover").onsubmit = (e) => {
   if (!note || !pendingSelection) return;
   const { page, quote, rects } = pendingSelection;
   setComments([...comments, { page, quote, rects, note }]);
+  ph?.capture("comment_added");
   window.getSelection()?.removeAllRanges();
   closePopover();
   $("hint").hidden = true;
@@ -698,6 +739,7 @@ async function analyze() {
         };
         $("promptInput").value = "";
         renderReview();
+        locateSuggestions();
       }
       if (evt.type === "error") addMessage("error", evt.message);
     });
@@ -706,6 +748,32 @@ async function analyze() {
   } finally {
     setBusy(false);
   }
+}
+
+// Map each suggestion's <find> text to a box on the PDF via the SyncTeX map.
+async function locateSuggestions() {
+  const map = await getSyncMap();
+  if (!map || !review) return;
+  for (const sg of review.suggestions) {
+    const at = savedTex.indexOf(sg.find);
+    if (at < 0) continue;
+    const first = savedTex.slice(0, at).split("\n").length;
+    const last = first + (sg.find.trim().match(/\n/g) || []).length;
+    let box = null;
+    for (let line = first; line <= last; line++) {
+      const b = boxForLine(map, line);
+      if (!b) continue;
+      if (!box || b.page !== box.page) box = { ...b };
+      else {
+        box.top = Math.min(box.top, b.top);
+        box.bottom = Math.max(box.bottom, b.bottom);
+        box.left = Math.min(box.left, b.left);
+        box.right = Math.max(box.right, b.right);
+      }
+    }
+    sg.box = box;
+  }
+  drawHighlights();
 }
 
 function renderReview() {
@@ -737,6 +805,7 @@ function renderReview() {
       </div>`;
     list.append(card);
   }
+  drawHighlights();
   const n = review.suggestions.filter((x) => x.state === "accepted").length;
   $("applyBtn").textContent = `Apply ${n}`;
   $("applyBtn").disabled = busy || n === 0;
@@ -887,6 +956,20 @@ async function loadDiff() {
 $("diffFrom").onchange = loadDiff;
 $("diffTo").onchange = loadDiff;
 
+// ---------- Analytics (PostHog, only when the server has a key) ----------
+
+let ph = null;
+function initAnalytics({ key, host }, userId) {
+  const s = document.createElement("script");
+  s.src = `${host}/static/array.js`;
+  s.onload = () => {
+    window.posthog.init(key, { api_host: host, person_profiles: "identified_only", capture_pageview: true, autocapture: false });
+    window.posthog.identify(userId);
+    ph = window.posthog;
+  };
+  document.head.append(s);
+}
+
 // ---------- Wiring ----------
 
 let chosenFile = null;
@@ -931,6 +1014,21 @@ $("chips").onclick = (e) => {
 };
 document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => setView(t.dataset.view)));
 $("recompileBtn").onclick = recompile;
+$("renameBtn").onclick = async () => {
+  if (!state?.id || busy) return;
+  const name = window.prompt("Rename this resume", state.name);
+  if (name == null || name.trim() === state.name) return;
+  const res = await fetch(`/api/resumes/${state.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const data = await res.json();
+  if (!res.ok) return addMessage("error", data.error);
+  state.name = data.name;
+  await refreshPicker(state.id);
+  ph?.capture("resume_renamed");
+};
 $("resumePicker").onchange = (e) => {
   if (!confirmDiscard()) {
     e.target.value = state?.id || "";
@@ -962,6 +1060,10 @@ window.addEventListener("beforeunload", (e) => {
   if (health?.missingTools?.length) problems.push(`Missing on the server: ${health.missingTools.join(", ")}. Run: brew install tectonic poppler`);
   if (health?.auth) {
     $("logoutBtn").hidden = false;
+    fetch("/api/me").then((r) => r.json()).then((me) => {
+      $("logoutBtn").textContent = `Sign out (${me.email})`;
+      if (me.analytics) initAnalytics(me.analytics, me.id);
+    }).catch(() => {});
     $("logoutBtn").onclick = async () => {
       await fetch("/api/logout", { method: "POST" });
       location.replace("/login.html");

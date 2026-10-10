@@ -64,6 +64,7 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn.big { padding: 10px 18px; font-size: 15px; }
+.btn.small { padding: 4px 10px; font-size: 12px; }
 
 .banner { padding: 10px 16px; background: var(--warn-bg); border-bottom: 1px solid var(--border); }
 
@@ -141,6 +142,13 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
   position: absolute; left: -9px; top: -10px; min-width: 16px; height: 16px; padding: 0 4px;
   border-radius: 8px; background: #d97706; color: #fff; font: 600 10px/16px -apple-system, sans-serif; text-align: center;
 }
+.sg-hl { pointer-events: auto; cursor: pointer; background: rgb(47 91 211 / 0.14); outline: 1.5px dashed rgb(47 91 211 / 0.7); }
+.sg-hl.accepted { background: rgb(22 163 74 / 0.18); outline: 1.5px solid rgb(22 163 74 / 0.8); }
+.sg-hl:hover { background: rgb(47 91 211 / 0.26); }
+.sg-num { background: var(--accent); }
+.sg-hl.accepted .sg-num { background: #16a34a; }
+.sg.flash { outline: 2px solid var(--accent); }
+.login-tabs { padding: 0; border: 0; }
 .hint { padding: 6px 16px; font-size: 12px; border-top: 1px solid var(--border); }
 
 .popover {

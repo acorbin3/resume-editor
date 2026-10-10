@@ -8,30 +8,74 @@
 </head>
 <body>
   <main class="upload-view">
-    <form id="loginForm" class="upload-card login-card">
+    <form id="form" class="upload-card login-card">
       <h1>Resume Editor</h1>
+      <div class="tabs login-tabs" role="tablist">
+        <button type="button" class="tab active" data-mode="login">Sign in</button>
+        <button type="button" class="tab" data-mode="signup" id="signupTab" hidden>Create account</button>
+      </div>
+      <label class="field">
+        <span>Email</span>
+        <input type="email" id="email" autocomplete="email" autofocus required />
+      </label>
       <label class="field">
         <span>Password</span>
-        <input type="password" id="password" autocomplete="current-password" autofocus required />
+        <input type="password" id="password" autocomplete="current-password" required minlength="8" />
+      </label>
+      <label class="field" id="codeField" hidden>
+        <span>Invite code</span>
+        <input type="text" id="code" autocomplete="off" />
       </label>
       <div class="login-error" id="error" hidden></div>
-      <button class="btn primary big" type="submit">Sign in</button>
+      <button class="btn primary big" type="submit" id="submit">Sign in</button>
+      <a class="btn big" id="googleBtn" href="/api/auth/google" hidden>Continue with Google</a>
+      <p class="muted" id="hint"></p>
     </form>
   </main>
   <script>
-    document.getElementById("loginForm").onsubmit = async (e) => {
+    const $ = (id) => document.getElementById(id);
+    let mode = "login";
+    let info = { signupOpen: false, needsCode: false, hasUsers: true };
+
+    function setMode(m) {
+      mode = m;
+      document.querySelectorAll(".login-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === m));
+      $("submit").textContent = m === "login" ? "Sign in" : "Create account";
+      $("codeField").hidden = !(m === "signup" && info.needsCode);
+      $("password").autocomplete = m === "login" ? "current-password" : "new-password";
+      $("error").hidden = true;
+    }
+
+    const qerr = new URLSearchParams(location.search).get("error");
+    if (qerr) {
+      $("error").textContent = qerr;
+      $("error").hidden = false;
+    }
+    fetch("/api/auth").then((r) => r.json()).then((i) => {
+      info = i;
+      $("signupTab").hidden = !i.signupOpen;
+      $("googleBtn").hidden = !i.google;
+      if (!i.hasUsers && i.signupOpen) {
+        $("hint").textContent = "No accounts yet. Create the first one.";
+        setMode("signup");
+      }
+    }).catch(() => {});
+
+    document.querySelectorAll(".login-tabs .tab").forEach((t) => (t.onclick = () => setMode(t.dataset.mode)));
+
+    $("form").onsubmit = async (e) => {
       e.preventDefault();
-      const err = document.getElementById("error");
-      err.hidden = true;
-      const res = await fetch("/api/login", {
+      $("error").hidden = true;
+      const body = { email: $("email").value.trim(), password: $("password").value, code: $("code").value.trim() };
+      const res = await fetch(mode === "login" ? "/api/login" : "/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: document.getElementById("password").value }),
+        body: JSON.stringify(body),
       });
       if (res.ok) return location.replace("/" + location.hash);
-      const body = await res.json().catch(() => ({}));
-      err.textContent = body.error || "Sign in failed.";
-      err.hidden = false;
+      const data = await res.json().catch(() => ({}));
+      $("error").textContent = data.error || "Something went wrong.";
+      $("error").hidden = false;
     };
   </script>
 </body>

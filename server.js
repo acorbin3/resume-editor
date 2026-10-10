@@ -5,7 +5,9 @@ import { diffLines, diffWords } from "diff";
 import { compileTex, checkTools, pdfToText, parseSynctex } from "./lib/latex.js";
 import { BACKEND, textIsUsable, convertPdf, editTex, analyzeTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
 import * as store from "./lib/store.js";
-import { authEnabled, requireAuth, login, logout } from "./lib/auth.js";
+import { signupOpen, requireAuth, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
+import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
+import { compileLane, claudeLane, queueStats } from "./lib/queue.js";
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";
@@ -14,7 +16,16 @@ const MAX_FIX_ATTEMPTS = 2;
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "2mb" }));
+// Unauthenticated health check for uptime monitors.
+app.get("/healthz", async (_req, res) => {
+  const missing = await checkTools();
+  res.status(missing.length ? 503 : 200).json({ ok: !missing.length, missingTools: missing, queue: queueStats() });
+});
+app.get("/api/auth", authInfo);
 app.post("/api/login", login);
+app.post("/api/signup", signup);
+app.get("/api/auth/google", googleStart);
+app.get("/api/auth/google/callback", googleCallback);
 app.use(requireAuth);
 app.post("/api/logout", logout);
 app.use(express.static("public"));
@@ -48,7 +59,7 @@ async function compileWithRepair(tex, { send, history, source, fitOnePage }) {
   let fitTried = false;
   for (let attempt = 0; ; attempt++) {
     send({ type: "status", message: "Compiling PDF…" });
-    const result = await compileTex(tex);
+    const result = await compileLane.run(() => compileTex(tex), (pos) => send({ type: "status", message: `Waiting for a compile slot (${pos} ahead)…` }));
     if (!result.ok) {
       if (attempt >= MAX_FIX_ATTEMPTS) {
         const err = new Error("LaTeX failed to compile.");
@@ -56,13 +67,13 @@ async function compileWithRepair(tex, { send, history, source, fitOnePage }) {
         throw err;
       }
       send({ type: "status", message: "Compile error, asking Claude to fix it…" });
-      ({ tex } = await editTex(tex, fixCompileRequest(result.log), { history, onProgress: send }));
+      ({ tex } = await claudeLane.run(() => editTex(tex, fixCompileRequest(result.log), { history, onProgress: send })));
       continue;
     }
     if (fitOnePage && result.pages > 1 && !fitTried) {
       fitTried = true;
       send({ type: "status", message: `Spilled to ${result.pages} pages, tightening to one…` });
-      ({ tex } = await editTex(tex, fitPageRequest(result.pages), { history, source, onProgress: send }));
+      ({ tex } = await claudeLane.run(() => editTex(tex, fitPageRequest(result.pages), { history, source, onProgress: send })));
       attempt = -1; // fresh compile-fix budget for the tightened version
       continue;
     }
@@ -74,18 +85,39 @@ app.get("/api/health", async (_req, res) => {
   res.json({
     missingTools: await checkTools(),
     backend: BACKEND,
-    auth: authEnabled,
+    auth: true,
+    queue: queueStats(),
   });
 });
 
-app.get("/api/resumes", async (_req, res) => res.json(await store.listResumes()));
+app.get("/api/resumes", (req, res) => res.json(store.listResumes(req.user.id)));
+app.get("/api/me", (req, res) =>
+  res.json({ id: req.user.id, email: req.user.email, analytics: analyticsEnabled ? { key: process.env.POSTHOG_KEY, host: posthogHost } : null })
+);
+
+app.patch("/api/resumes/:id", (req, res) => {
+  try {
+    res.json({ name: store.renameResume(req.user.id, req.params.id, req.body.name) });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: errorMessage(err) });
+  }
+});
+
+app.delete("/api/resumes/:id", async (req, res) => {
+  try {
+    await store.deleteResume(req.user.id, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: errorMessage(err) });
+  }
+});
 
 app.get("/api/resumes/:id", async (req, res) => {
   try {
-    const meta = await store.getMeta(req.params.id);
-    res.json({ ...publicState(meta), tex: meta.current ? await store.getTex(meta.id, meta.current) : "" });
-  } catch {
-    res.status(404).json({ error: "Not found" });
+    const meta = await store.getMeta(req.user.id, req.params.id);
+    res.json({ ...publicState(meta), tex: meta.current ? await store.getTex(meta, meta.current) : "" });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: errorMessage(err) });
   }
 });
 
@@ -99,21 +131,22 @@ app.post("/api/resumes", upload.single("pdf"), async (req, res) => {
   let meta;
   try {
     const text = await pdfToText(req.file.buffer);
-    meta = await store.createResume(req.file.buffer, req.file.originalname, text);
+    meta = await store.createResume(req.user.id, req.file.buffer, req.file.originalname, text);
     send({ type: "created", id: meta.id });
     const source = { text, pdf: req.file.buffer };
     send({ type: "status", message: textIsUsable(text) ? "Claude is converting the resume text…" : "No usable text in the PDF, Claude is reading the PDF itself…" });
-    const converted = await convertPdf(source, instructions, send);
+    const converted = await claudeLane.run(() => convertPdf(source, instructions, send), (pos) => send({ type: "status", message: `Waiting for Claude (${pos} ahead)…` }));
     const built = await compileWithRepair(converted.tex, { send, history: [], source, fitOnePage });
-    meta.messages.push(
+    store.addMessages(meta, [
       { role: "user", text: instructions ? `Uploaded ${meta.filename}: ${instructions}` : `Uploaded ${meta.filename}` },
       { role: "assistant", text: converted.summary, version: meta.versions.length + 1 }
-    );
+    ]);
     await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: "Converted from PDF" });
+    track(req.user.id, "resume_converted", { pages: built.pages, backend: BACKEND, usedText: textIsUsable(text) });
     send({ type: "done", state: publicState(meta), tex: built.tex });
   } catch (err) {
     console.error(err);
-    if (meta && !meta.versions.length) await store.deleteResume(meta.id);
+    if (meta && !meta.versions.length) await store.deleteResume(req.user.id, meta.id);
     send({ type: "error", message: errorMessage(err), log: err.log });
   }
   res.end();
@@ -125,18 +158,20 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
   if (!prompt) return res.status(400).json({ error: "Enter a change to make." });
   const send = ndjson(res);
   try {
-    const meta = await store.getMeta(req.params.id);
-    const tex = await store.getTex(meta.id, meta.current);
+    const meta = await store.getMeta(req.user.id, req.params.id);
+    const tex = await store.getTex(meta, meta.current);
     const history = meta.messages.filter((m) => m.role === "user").map((m) => m.text).slice(-8);
-    const source = await store.getSource(meta.id);
+    const source = await store.getSource(meta);
     send({ type: "status", message: "Claude is editing…" });
-    const edited = await editTex(tex, prompt, { history, source, onProgress: send });
+    const edited = await claudeLane.run(() => editTex(tex, prompt, { history, source, onProgress: send }), (pos) => send({ type: "status", message: `Waiting for Claude (${pos} ahead)…` }));
     const built = await compileWithRepair(edited.tex, { send, history, source, fitOnePage: false });
-    meta.messages.push({ role: "user", text: prompt }, { role: "assistant", text: edited.summary, version: meta.versions.length + 1 });
+    store.addMessages(meta, [{ role: "user", text: prompt }, { role: "assistant", text: edited.summary, version: meta.versions.length + 1 }]);
     await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: prompt.slice(0, 80) });
+    track(req.user.id, "resume_edited", { pages: built.pages, backend: BACKEND });
     send({ type: "done", state: publicState(meta), tex: built.tex });
   } catch (err) {
     console.error(err);
+    trackError(req.user.id, req.path, err);
     send({ type: "error", message: errorMessage(err), log: err.log });
   }
   res.end();
@@ -146,15 +181,17 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
 app.post("/api/resumes/:id/analyze", async (req, res) => {
   const send = ndjson(res);
   try {
-    const meta = await store.getMeta(req.params.id);
+    const meta = await store.getMeta(req.user.id, req.params.id);
     if (!meta.current) throw new Error("Nothing to analyze yet.");
-    const tex = await store.getTex(meta.id, meta.current);
-    const source = await store.getSource(meta.id);
+    const tex = await store.getTex(meta, meta.current);
+    const source = await store.getSource(meta);
     send({ type: "status", message: "Claude is reviewing the resume…" });
-    const result = await analyzeTex(tex, { focus: (req.body.focus || "").trim(), source, onProgress: send });
+    const result = await claudeLane.run(() => analyzeTex(tex, { focus: (req.body.focus || "").trim(), source, onProgress: send }), (pos) => send({ type: "status", message: `Waiting for Claude (${pos} ahead)…` }));
+    track(req.user.id, "resume_analyzed", { suggestions: result.suggestions.length, dropped: result.dropped, backend: BACKEND });
     send({ type: "done", version: meta.current, ...result });
   } catch (err) {
     console.error(err);
+    trackError(req.user.id, req.path, err);
     send({ type: "error", message: errorMessage(err) });
   }
   res.end();
@@ -166,33 +203,35 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
   if (!accepted.length) return res.status(400).json({ error: "No suggestions selected." });
   const send = ndjson(res);
   try {
-    const meta = await store.getMeta(req.params.id);
+    const meta = await store.getMeta(req.user.id, req.params.id);
     if (req.body.version && Number(req.body.version) !== meta.current) {
       throw new Error("The resume changed since this review. Run the analysis again.");
     }
-    const tex = await store.getTex(meta.id, meta.current);
+    const tex = await store.getTex(meta, meta.current);
     const { tex: edited, failed } = applyReplacements(
       tex,
       accepted.map((r) => ({ find: String(r.find), replace: String(r.replace), title: String(r.title || "") }))
     );
     if (failed.length === accepted.length) throw new Error("None of the suggestions matched the current document.");
     const history = meta.messages.filter((m) => m.role === "user").map((m) => m.text).slice(-8);
-    const source = await store.getSource(meta.id);
+    const source = await store.getSource(meta);
     const built = await compileWithRepair(edited, { send, history, source, fitOnePage: false });
     const titles = accepted.filter((r) => !failed.includes(r)).map((r) => r.title || "suggestion");
     const n = accepted.length - failed.length;
-    meta.messages.push(
+    store.addMessages(meta, [
       { role: "user", text: `Accepted ${n} suggestion${n === 1 ? "" : "s"}:\n${titles.map((t) => `- ${t}`).join("\n")}` },
       {
         role: "assistant",
         text: failed.length ? `Applied ${n}. ${failed.length} no longer matched the document and were skipped.` : `Applied ${n} suggestion${n === 1 ? "" : "s"}.`,
         version: meta.versions.length + 1,
       }
-    );
+    ]);
     await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: `Applied ${n} suggestion${n === 1 ? "" : "s"}` });
+    track(req.user.id, "suggestions_applied", { accepted: n, skipped: failed.length });
     send({ type: "done", state: publicState(meta), tex: built.tex, skipped: failed.length });
   } catch (err) {
     console.error(err);
+    trackError(req.user.id, req.path, err);
     send({ type: "error", message: errorMessage(err), log: err.log });
   }
   res.end();
@@ -201,11 +240,11 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
 // Manual LaTeX edit from the source editor. No auto-repair: report errors to the user.
 app.put("/api/resumes/:id/tex", async (req, res) => {
   try {
-    const meta = await store.getMeta(req.params.id);
+    const meta = await store.getMeta(req.user.id, req.params.id);
     const tex = String(req.body.tex || "");
-    const result = await compileTex(tex);
+    const result = await compileLane.run(() => compileTex(tex));
     if (!result.ok) return res.status(422).json({ error: "LaTeX failed to compile.", log: result.log });
-    meta.messages.push({ role: "user", text: "Edited the LaTeX by hand" }, { role: "assistant", text: "Recompiled.", version: meta.versions.length + 1 });
+    store.addMessages(meta, [{ role: "user", text: "Edited the LaTeX by hand" }, { role: "assistant", text: "Recompiled.", version: meta.versions.length + 1 }]);
     await store.addVersion(meta, { tex, pdf: result.pdf, synctex: result.synctex, pages: result.pages, label: "Manual LaTeX edit" });
     res.json({ state: publicState(meta), tex });
   } catch (err) {
@@ -216,12 +255,11 @@ app.put("/api/resumes/:id/tex", async (req, res) => {
 // Point "current" at an earlier version.
 app.post("/api/resumes/:id/current", async (req, res) => {
   try {
-    const meta = await store.getMeta(req.params.id);
+    const meta = await store.getMeta(req.user.id, req.params.id);
     const n = Number(req.body.version);
     if (!meta.versions.some((v) => v.n === n)) return res.status(400).json({ error: "No such version." });
-    meta.current = n;
-    await store.saveMeta(meta);
-    res.json({ state: publicState(meta), tex: await store.getTex(meta.id, n) });
+    store.setCurrent(meta, n);
+    res.json({ state: publicState(meta), tex: await store.getTex(meta, n) });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
@@ -229,11 +267,14 @@ app.post("/api/resumes/:id/current", async (req, res) => {
 
 app.get("/api/resumes/:id/v/:n/resume.pdf", async (req, res) => {
   try {
-    const meta = await store.getMeta(req.params.id);
+    const meta = await store.getMeta(req.user.id, req.params.id);
     const n = Number(req.params.n);
     if (!meta.versions.some((v) => v.n === n)) return res.status(404).end();
-    if (req.query.download) res.attachment(`${meta.name}.pdf`);
-    res.sendFile(store.pdfPath(meta.id, n));
+    if (req.query.download) {
+      res.attachment(`${meta.name}.pdf`);
+      track(req.user.id, "pdf_downloaded");
+    }
+    res.type("application/pdf").sendFile(store.pdfPath(meta, n));
   } catch {
     res.status(404).end();
   }
@@ -244,11 +285,11 @@ app.get("/api/resumes/:id/v/:n/resume.pdf", async (req, res) => {
 // Line diff between two versions, with word-level detail for changed line groups.
 app.get("/api/resumes/:id/diff", async (req, res) => {
   try {
-    const meta = await store.getMeta(req.params.id);
+    const meta = await store.getMeta(req.user.id, req.params.id);
     const to = Number(req.query.to) || meta.current;
     const from = Number(req.query.from) || Math.max(1, to - 1);
     if (![from, to].every((n) => meta.versions.some((v) => v.n === n))) return res.status(404).json({ error: "No such version." });
-    const [a, b] = await Promise.all([store.getTex(meta.id, from), store.getTex(meta.id, to)]);
+    const [a, b] = await Promise.all([store.getTex(meta, from), store.getTex(meta, to)]);
     const parts = diffLines(a, b);
     // Pair each removed block with the added block that follows it so the UI can show
     // word-level changes inside modified lines.
@@ -270,15 +311,15 @@ app.get("/api/resumes/:id/diff", async (req, res) => {
 
 app.get("/api/resumes/:id/v/:n/synctex", async (req, res) => {
   try {
-    const meta = await store.getMeta(req.params.id);
+    const meta = await store.getMeta(req.user.id, req.params.id);
     const n = Number(req.params.n);
     if (!meta.versions.some((v) => v.n === n)) return res.status(404).end();
-    let gz = await store.getSynctex(meta.id, n);
+    let gz = await store.getSynctex(meta, n);
     if (!gz) {
-      const result = await compileTex(await store.getTex(meta.id, n));
+      const result = await compileLane.run(async () => compileTex(await store.getTex(meta, n)));
       if (!result.ok || !result.synctex) return res.status(500).json({ error: "Couldn't build the sync map." });
       gz = result.synctex;
-      await store.saveSynctex(meta.id, n, gz);
+      await store.saveSynctex(meta, n, gz);
     }
     res.json(parseSynctex(gz));
   } catch (err) {
@@ -288,17 +329,20 @@ app.get("/api/resumes/:id/v/:n/synctex", async (req, res) => {
 
 app.get("/api/resumes/:id/v/:n/resume.tex", async (req, res) => {
   try {
-    const meta = await store.getMeta(req.params.id);
-    const tex = await store.getTex(meta.id, Number(req.params.n));
+    const meta = await store.getMeta(req.user.id, req.params.id);
+    const tex = await store.getTex(meta, Number(req.params.n));
     res.attachment(`${meta.name}.tex`).type("application/x-tex").send(tex);
   } catch {
     res.status(404).end();
   }
 });
 
+for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, async () => { await shutdownAnalytics(); process.exit(0); });
+
 app.listen(PORT, HOST, async () => {
   console.log(`Resume editor running at http://${HOST}:${PORT}`);
-  console.log(authEnabled ? "Password login is on." : "APP_PASSWORD not set: no login required. Don't expose this publicly.");
+  console.log(signupOpen ? "Accounts: sign-up is open" + (process.env.SIGNUP_CODE ? " (invite code required)." : ".") : "Accounts: sign-up is closed.");
+  console.log(`Google sign-in: ${process.env.GOOGLE_CLIENT_ID ? "on" : "off"}. PostHog: ${analyticsEnabled ? "on" : "off"}.`);
   const missing = await checkTools();
   if (missing.length) console.warn(`Missing tools: ${missing.join(", ")} (brew install tectonic poppler)`);
   console.log(BACKEND === "api" ? "Using the Anthropic API." : "No ANTHROPIC_API_KEY: using `claude -p` (Claude Code login).");

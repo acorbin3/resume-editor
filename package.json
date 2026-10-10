@@ -5,10 +5,11 @@
   "type": "module",
   "description": "Upload a resume PDF, convert it to a standard LaTeX template with Claude, tweak it with prompts, and download the PDF.",
   "scripts": {
-    "start": "node --env-file-if-exists=.env server.js",
-    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "start": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env server.js",
+    "dev": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env --watch server.js",
     "build:editor": "esbuild editor/entry.js --bundle --format=esm --minify --outfile=public/vendor/editor.js",
-    "postinstall": "npm run build:editor"
+    "postinstall": "npm run build:editor",
+    "migrate": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env scripts/migrate-legacy.js"
   },
   "engines": {
     "node": ">=22"
@@ -27,7 +28,8 @@
     "diff": "^9.0.0",
     "express": "^5.3.0",
     "multer": "^2.4.0",
-    "pdfjs-dist": "^6.4.299"
+    "pdfjs-dist": "^6.4.299",
+    "posthog-node": "^5.55.1"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
