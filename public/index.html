@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f1f1d" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
   <title>Resume Editor</title>
   <link rel="stylesheet" href="/vendor/pdfjs-web/pdf_viewer.css" />
   <link rel="stylesheet" href="styles.css" />
@@ -14,10 +16,10 @@
     <button class="btn small" id="renameBtn" title="Rename this resume" hidden>Rename</button>
     <div class="spacer"></div>
     <div class="downloads" id="downloads" hidden>
-      <a id="dlPdf" class="btn primary" href="#">Download PDF</a>
-      <a id="dlTex" class="btn" href="#">Download .tex</a>
+      <a id="dlPdf" class="btn primary" href="#"><span class="full">Download PDF</span><span class="short">PDF</span></a>
+      <a id="dlTex" class="btn" href="#"><span class="full">Download .tex</span><span class="short">.tex</span></a>
     </div>
-    <button class="btn" id="logoutBtn" hidden>Sign out</button>
+    <button class="btn" id="logoutBtn" hidden><span class="full">Sign out</span><span class="short">Out</span></button>
   </header>
 
   <div id="banner" class="banner" hidden></div>
@@ -41,8 +43,8 @@
   </main>
 
   <!-- Editor screen -->
-  <main id="editorView" class="editor-view" hidden>
-    <section class="side">
+  <main id="editorView" class="editor-view panel-chat" hidden>
+    <section class="side" id="sidePanel">
       <div class="messages" id="messages"></div>
       <div class="chips" id="chips">
         <button class="chip-primary" id="analyzeBtn" type="button">✦ Analyze my resume</button>
@@ -82,7 +84,7 @@
       </details>
     </section>
 
-    <section class="preview">
+    <section class="preview" id="previewPanel">
       <div class="tabs" role="tablist">
         <button role="tab" class="tab" data-view="pdf">Preview</button>
         <button role="tab" class="tab" data-view="split">Split</button>
@@ -127,6 +129,13 @@
       </div>
     </section>
   </main>
+
+  <nav class="mobile-nav" id="mobileNav" hidden>
+    <button data-panel="chat" class="active"><span class="ico">💬</span>Chat</button>
+    <button data-panel="pdf"><span class="ico">📄</span>Preview</button>
+    <button data-panel="tex"><span class="ico">⌨️</span>LaTeX</button>
+    <button data-panel="diff"><span class="ico">↔︎</span>Changes</button>
+  </nav>
 
   <script type="module" src="app.js"></script>
 </body>

@@ -68,6 +68,7 @@ function setBusy(on, text = "Working…") {
 function showView(name) {
   $("uploadView").hidden = name !== "upload";
   $("editorView").hidden = name !== "editor";
+  syncMobileNav();
 }
 
 // Read a newline-delimited JSON stream, calling onEvent for each event.
@@ -245,6 +246,7 @@ async function convert(file) {
       if (evt.type === "done") {
         state = evt.state;
         render(evt.tex);
+        if (isMobile()) setPanel("pdf");
       }
       if (evt.type === "error") {
         addMessage("error", `${evt.message}\nPick “+ New resume” above to try again.`, null, true, evt.log);
@@ -293,6 +295,7 @@ async function applyPrompt(typed) {
       if (evt.type === "done") {
         state = evt.state;
         render(evt.tex);
+        if (isMobile()) setPanel("pdf");
       }
       if (evt.type === "error") {
         addMessage("error", evt.message, null, true, evt.log);
@@ -341,6 +344,10 @@ function setView(name) {
   } catch {}
   if (name !== "pdf") editor.view.requestMeasure();
   if (name === "diff") loadDiff();
+  // The PDF pane may have been hidden when the document loaded; render it now if so.
+  if ((name === "pdf" || name === "split") && renderedSrc && !$("pdfViewer").querySelector(".pdf-page")) {
+    setTimeout(() => renderPdf(renderedSrc), 50);
+  }
   ph?.capture("view_changed", { view: name });
 }
 
@@ -353,7 +360,8 @@ function initView() {
     const split = localStorage.getItem("split");
     if (split) $("panes").style.setProperty("--split", split);
   } catch {}
-  setView(saved || (window.innerWidth >= 1200 ? "split" : "pdf"));
+  setView(isMobile() ? "pdf" : saved || (window.innerWidth >= 1200 ? "split" : "pdf"));
+  syncMobileNav();
 }
 
 // Drag the divider to resize the split.
@@ -413,7 +421,8 @@ async function syncToSource(pageDiv, clientX, clientY, word) {
   const scale = Number(pageDiv.dataset.scale);
   const line = lineAtPoint(map, Number(pageDiv.dataset.page), (clientX - box.left) / scale, (clientY - box.top) / scale);
   if (line == null) return;
-  if (currentView() === "pdf") setView("split");
+  if (isMobile()) setPanel("tex");
+  else if (currentView() === "pdf") setView("split");
   const refined = refineLine(line, word);
   editor.goToLine(refined, word && editor.getValue().split("\n")[refined - 1]?.includes(word) ? word : null);
 }
@@ -423,7 +432,8 @@ async function syncToPdf(line) {
   const map = await getSyncMap();
   const target = map && boxForLine(map, line);
   if (!target) return;
-  if (currentView() === "tex") setView("split");
+  if (isMobile()) setPanel("pdf");
+  else if (currentView() === "tex") setView("split");
   // Switching from LaTeX-only re-renders the PDF at the new width; wait for it.
   if (!document.querySelector(`.pdf-page[data-page="${target.page}"]`)) await pdfRendered;
   {
@@ -449,8 +459,24 @@ async function syncToPdf(line) {
 
 // ---------- PDF viewer ----------
 
+// Renders are serialized: a request during a render re-runs once it finishes, so a
+// view switch plus a ResizeObserver tick can't abort each other and leave the pane empty.
+let rendering = false;
+let renderQueued = false;
 function renderPdf(src) {
-  pdfRendered = doRenderPdf(src);
+  renderedSrc = src;
+  if (rendering) {
+    renderQueued = true;
+    return pdfRendered;
+  }
+  rendering = true;
+  pdfRendered = doRenderPdf(src).finally(() => {
+    rendering = false;
+    if (renderQueued) {
+      renderQueued = false;
+      renderPdf(renderedSrc);
+    }
+  });
   return pdfRendered;
 }
 
@@ -650,6 +676,7 @@ $("pdfViewer").addEventListener("click", (e) => {
   const hl = e.target.closest(".sg-hl");
   if (!hl) return;
   const card = document.querySelector(`.sg[data-id="${hl.dataset.sg}"]`);
+  if (isMobile()) setPanel("chat");
   card?.scrollIntoView({ behavior: "smooth", block: "center" });
   card?.classList.add("flash");
   setTimeout(() => card?.classList.remove("flash"), 1200);
@@ -827,7 +854,8 @@ $("suggestionList").addEventListener("click", (e) => {
   if (act === "show") {
     // Jump the PDF to the first line of the text this suggestion changes.
     const line = savedTex.slice(0, savedTex.indexOf(sg.find)).split("\n").length;
-    if (currentView() === "diff") setView("split");
+    if (isMobile()) setPanel("pdf");
+    else if (currentView() === "diff") setView("split");
     syncToPdf(line);
     return;
   }
@@ -876,7 +904,8 @@ $("applyBtn").onclick = async () => {
         state = evt.state;
         render(evt.tex);
         if (evt.skipped) addMessage("error", `${evt.skipped} suggestion${evt.skipped > 1 ? "s" : ""} no longer matched and were skipped.`);
-        setView("diff");
+        if (isMobile()) setPanel("diff");
+        else setView("diff");
       }
       if (evt.type === "error") {
         addMessage("error", evt.message, null, true, evt.log);
@@ -955,6 +984,50 @@ async function loadDiff() {
 }
 $("diffFrom").onchange = loadDiff;
 $("diffTo").onchange = loadDiff;
+
+// ---------- Mobile: one panel at a time ----------
+
+const mobileQuery = window.matchMedia("(max-width: 820px)");
+const isMobile = () => mobileQuery.matches;
+
+function setPanel(name) {
+  // name: chat | pdf | tex | diff
+  $("editorView").classList.toggle("panel-chat", name === "chat");
+  document.querySelectorAll("#mobileNav button").forEach((b) => b.classList.toggle("active", b.dataset.panel === name));
+  if (name !== "chat") setView(name);
+  $("mobileNav").dataset.panel = name;
+  closePopover();
+}
+
+const currentPanel = () => $("mobileNav").dataset.panel || "chat";
+
+$("mobileNav").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-panel]");
+  if (b) setPanel(b.dataset.panel);
+});
+
+function syncMobileNav() {
+  $("mobileNav").hidden = !isMobile() || $("editorView").hidden;
+  if (isMobile()) {
+    if (currentView() === "split") setView("pdf");
+    if (!$("editorView").classList.contains("panel-chat") && currentPanel() === "chat") setPanel("chat");
+  } else {
+    $("editorView").classList.add("panel-chat"); // both sections show on desktop; class is harmless there
+  }
+}
+mobileQuery.addEventListener("change", syncMobileNav);
+
+// On a phone, selection happens by touch: open the comment box when a selection settles.
+let selTimer;
+document.addEventListener("selectionchange", () => {
+  if (!isMobile() || busy || currentPanel() !== "pdf") return;
+  clearTimeout(selTimer);
+  selTimer = setTimeout(() => {
+    if (!$("popover").hidden) return;
+    const selection = captureSelection();
+    if (selection) openPopover(selection);
+  }, 600);
+});
 
 // ---------- Analytics (PostHog, only when the server has a key) ----------
 

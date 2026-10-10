@@ -236,9 +236,82 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.topbar .short { display: none; }
+.mobile-nav { display: none; }
+
+/* ---------- Phones and small tablets: one panel at a time ---------- */
 @media (max-width: 820px) {
-  .editor-view { grid-template-columns: 1fr; grid-template-rows: auto 70vh; }
-  .side { border-right: 0; border-bottom: 1px solid var(--border); }
-  .messages { max-height: 30vh; }
-  .topbar { flex-wrap: wrap; }
+  :root { --nav-h: calc(56px + env(safe-area-inset-bottom)); }
+  html, body { height: 100%; overflow: hidden; }
+  body { font-size: 15px; }
+
+  /* Two rows: resume picker + rename, then downloads + sign out */
+  .topbar { padding: 8px 10px; gap: 8px; flex-wrap: wrap; }
+  .brand { display: none; }
+  select { flex: 1 1 200px; min-width: 0; max-width: none; min-height: 40px; }
+  #renameBtn { flex: 0 0 auto; }
+  .downloads { flex: 1 1 160px; }
+  .downloads .btn { flex: 1; }
+  #logoutBtn { flex: 1 1 auto; }
+  .topbar .full { display: none; }
+  .topbar .short { display: inline; }
+  .btn { min-height: 40px; }
+  .btn.small { min-height: 34px; }
+  .spacer { display: none; }
+  .downloads { gap: 6px; }
+
+  .banner { font-size: 13px; }
+
+  .upload-view { padding: 16px 12px calc(16px + env(safe-area-inset-bottom)); align-items: start; overflow-y: auto; }
+  .upload-card { padding: 20px 16px; }
+  .dropzone { padding: 28px 12px; }
+
+  .editor-view { display: block; position: relative; flex: 1; min-height: 0; }
+  .editor-view > section { position: absolute; inset: 0 0 var(--nav-h) 0; display: none; }
+  .editor-view.panel-chat #sidePanel { display: flex; }
+  .editor-view:not(.panel-chat) #previewPanel { display: flex; }
+  .side { border-right: 0; }
+
+  .messages { padding: 12px; gap: 8px; }
+  .msg { max-width: 94%; font-size: 14px; }
+  .chips { padding: 6px 12px 0; gap: 6px; }
+  .chips button { padding: 8px 12px; font-size: 13px; min-height: 36px; }
+  .suggestions, .comments { margin: 8px 12px 0; max-height: 40vh; }
+  .sg-actions button { min-height: 36px; padding: 6px 12px; }
+  .prompt { padding: 8px 12px 10px; }
+  .prompt textarea { font-size: 16px; } /* 16px stops iOS zooming on focus */
+  .versions { max-height: 22vh; }
+
+  .tabs { display: none; } /* the bottom nav replaces the view tabs */
+  .preview .page-info { display: none; }
+  .panes { flex: 1; }
+  .panes.view-split #pdfPane { flex: 1; }
+  .panes.view-split #texPane, .panes.view-split #divider { display: none; }
+  .pdf-viewer { padding: 8px; }
+  .hint { display: none; }
+  .popover { width: calc(100vw - 24px); left: 12px !important; }
+  .popover textarea { font-size: 16px; }
+  .tex-actions { padding: 8px 12px; }
+  .tex-actions .muted { font-size: 12px; }
+  .diff-head { flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
+  .diff-head select { max-width: 42vw; }
+  .diff-body { padding: 10px 12px; font-size: 12px; }
+  .busy { bottom: var(--nav-h); }
+
+  .mobile-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--nav-h);
+    display: flex; padding-bottom: env(safe-area-inset-bottom);
+    background: var(--surface); border-top: 1px solid var(--border); z-index: 20;
+  }
+  .mobile-nav[hidden] { display: none; }
+  .mobile-nav button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    font: inherit; font-size: 11px; background: none; border: 0; color: var(--muted); cursor: pointer;
+  }
+  .mobile-nav button .ico { font-size: 18px; line-height: 1; }
+  .mobile-nav button.active { color: var(--accent); font-weight: 600; }
+  .mobile-nav button .badge {
+    position: absolute; margin-left: 28px; margin-top: -22px; min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 8px; background: var(--accent); color: var(--accent-text); font-size: 10px; line-height: 16px;
+  }
 }
