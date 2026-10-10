@@ -1,7 +1,12 @@
 # Local or single-server deployment.
-#   cp .env.example .env   # set ANTHROPIC_API_KEY (required in Docker: no `claude -p` here)
+#   cp .env.example .env
 #   docker compose up -d --build
 #   open http://localhost:4747
+#
+# Claude backend, pick one in .env:
+#   ANTHROPIC_API_KEY=...                 direct API (use this for anything public)
+#   CLAUDE_BRIDGE_TOKEN=... + `npm run bridge` on the host: the container uses the
+#                                         Claude Code login on this machine (your own use only)
 services:
   app:
     build: .
@@ -16,6 +21,10 @@ services:
       PORT: "3000"
       HOST: "0.0.0.0"
       DATA_DIR: /data
+      # Reaches scripts/claude-bridge.js on the host when CLAUDE_BRIDGE_TOKEN is set and no API key is.
+      # Docker Desktop and Rancher Desktop provide host.docker.internal. On plain Linux Docker,
+      # add `extra_hosts: ["host.docker.internal:host-gateway"]` here (or just use an API key).
+      CLAUDE_BRIDGE_URL: ${CLAUDE_BRIDGE_URL:-http://host.docker.internal:4848}
     volumes:
       - resume-data:/data
     # LaTeX compiles run inside this container; keep it unprivileged and resource-capped.

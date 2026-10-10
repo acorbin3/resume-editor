@@ -113,12 +113,26 @@ Upgrading from the pre-database layout: create your account in the app, then
 ## Docker (try it out, or deploy)
 
 ```bash
-cp .env.example .env            # set ANTHROPIC_API_KEY (required: there's no `claude` CLI in the image)
+cp .env.example .env            # set ANTHROPIC_API_KEY, or CLAUDE_BRIDGE_TOKEN (see below)
 docker compose up -d --build    # first build downloads tectonic and warms its package cache
 open http://localhost:4747
 ```
 
-Data lives in the `resume-data` volume. The container runs as an unprivileged user with all
+The image is Alpine-based, about 440 MB, most of it Node itself, tectonic, and its pre-warmed TeX
+package cache. Data lives in the `resume-data` volume.
+
+**Using your Claude Code login from Docker.** There's no `claude` CLI inside the image. For your own
+local use you can run a small bridge on the host that the container calls instead of the API:
+
+```bash
+echo "CLAUDE_BRIDGE_TOKEN=$(openssl rand -hex 16)" >> .env   # same .env the container reads
+npm run bridge                                               # on the host, keep it running
+docker compose up -d
+```
+
+The bridge listens on 127.0.0.1:4848, requires the token, and runs `claude -p` with the same
+restrictions as the local backend. Anthropic's terms allow this for your own use; anything serving
+other people needs `ANTHROPIC_API_KEY`, which takes precedence when both are set. The container runs as an unprivileged user with all
 capabilities dropped, which is the LaTeX sandbox on Linux. `GET /healthz` is the container health check.
 
 ### Deploy to a VPS

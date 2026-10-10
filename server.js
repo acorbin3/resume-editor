@@ -19,7 +19,7 @@ app.use(express.json({ limit: "2mb" }));
 // Unauthenticated health check for uptime monitors.
 app.get("/healthz", async (_req, res) => {
   const missing = await checkTools();
-  if (!(await checkClaudeCli())) missing.push("claude (set ANTHROPIC_API_KEY or install the Claude Code CLI)");
+  if (!(await checkClaudeCli())) missing.push(BACKEND === "bridge" ? `claude bridge at ${process.env.CLAUDE_BRIDGE_URL} (run \`npm run bridge\` on the host)` : "claude (set ANTHROPIC_API_KEY or install the Claude Code CLI)");
   res.status(missing.length ? 503 : 200).json({ ok: !missing.length, missingTools: missing, queue: queueStats() });
 });
 app.get("/api/auth", authInfo);
@@ -346,6 +346,6 @@ app.listen(PORT, HOST, async () => {
   console.log(`Google sign-in: ${process.env.GOOGLE_CLIENT_ID ? "on" : "off"}. PostHog: ${analyticsEnabled ? "on" : "off"}.`);
   const missing = await checkTools();
   if (missing.length) console.warn(`Missing tools: ${missing.join(", ")} (brew install tectonic poppler)`);
-  console.log(BACKEND === "api" ? "Using the Anthropic API." : "No ANTHROPIC_API_KEY: using `claude -p` (Claude Code login).");
-  if (!(await checkClaudeCli())) console.error("ERROR: no ANTHROPIC_API_KEY and no `claude` CLI on PATH. Conversions will fail until one is set.");
+  console.log({ api: "Using the Anthropic API.", bridge: `Using the Claude bridge at ${process.env.CLAUDE_BRIDGE_URL}.`, cli: "No ANTHROPIC_API_KEY: using `claude -p` (Claude Code login)." }[BACKEND]);
+  if (!(await checkClaudeCli())) console.error(BACKEND === "bridge" ? "WARNING: the Claude bridge isn't reachable yet. Run `npm run bridge` on the host." : "ERROR: no ANTHROPIC_API_KEY and no `claude` CLI on PATH. Conversions will fail until one is set.");
 });

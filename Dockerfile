@@ -3,21 +3,22 @@
 # so it runs as an unprivileged user; don't mount anything sensitive into it.
 
 # --- Stage 1: build the CodeMirror editor bundle (needs dev deps) ---
-FROM node:24-bookworm-slim AS editor
+FROM node:24-alpine AS editor
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY editor ./editor
 RUN npm run build:editor --silent
 
-# --- Stage 2: production node_modules only ---
-FROM node:24-bookworm-slim AS deps
+# --- Stage 2: production node_modules only (no dev, no optional native canvas) ---
+FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm ci --omit=dev --omit=optional --ignore-scripts \
+ && rm -rf node_modules/pdfjs-dist/legacy node_modules/pdfjs-dist/image_decoders
 
 # --- Stage 3: runtime ---
-FROM node:24-bookworm-slim
+FROM node:24-alpine
 ARG TECTONIC_VERSION=0.17.0
 ENV NODE_ENV=production \
     DATA_DIR=/data \
@@ -25,14 +26,11 @@ ENV NODE_ENV=production \
     PORT=3000 \
     XDG_CACHE_HOME=/opt/tectonic-cache
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends poppler-utils git ca-certificates curl \
- && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache poppler-utils git curl
 
 # tectonic: static musl binary from the GitHub release, picked by architecture
 RUN set -eux; \
-    arch="$(dpkg --print-architecture)"; \
-    case "$arch" in amd64) t=x86_64-unknown-linux-musl ;; arm64) t=aarch64-unknown-linux-musl ;; *) echo "unsupported arch $arch" && exit 1 ;; esac; \
+    case "$(uname -m)" in x86_64) t=x86_64-unknown-linux-musl ;; aarch64) t=aarch64-unknown-linux-musl ;; *) echo "unsupported arch" && exit 1 ;; esac; \
     curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-${t}.tar.gz" \
       | tar -xz -C /usr/local/bin tectonic; \
     tectonic --version

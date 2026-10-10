@@ -9,13 +9,22 @@
     "dev": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env --watch server.js",
     "build:editor": "esbuild editor/entry.js --bundle --format=esm --minify --outfile=public/vendor/editor.js",
     "postinstall": "npm run build:editor",
-    "migrate": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env scripts/migrate-legacy.js"
+    "migrate": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env scripts/migrate-legacy.js",
+    "bridge": "node --env-file-if-exists=.env scripts/claude-bridge.js"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
+    "diff": "^9.0.0",
+    "express": "^5.3.0",
+    "multer": "^2.4.0",
+    "pdfjs-dist": "^6.4.299",
+    "posthog-node": "^5.55.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/language": "^6.13.1",
     "@codemirror/legacy-modes": "^6.5.5",
@@ -24,15 +33,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.43.14",
-    "codemirror": "^6.0.2",
-    "diff": "^9.0.0",
-    "express": "^5.3.0",
-    "multer": "^2.4.0",
-    "pdfjs-dist": "^6.4.299",
-    "posthog-node": "^5.55.1"
-  },
-  "devDependencies": {
-    "esbuild": "^0.28.2"
+    "codemirror": "^6.0.2"
   },
   "license": "MIT"
 }
