@@ -30,7 +30,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
+html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+.messages, .pdf-viewer, .diff-body, .editor-host, .suggestions, .comments, .versions { overscroll-behavior: contain; }
 body {
   font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);

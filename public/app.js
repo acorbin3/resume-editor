@@ -94,6 +94,7 @@ function setBusy(on, text = "Working…", btn = null) {
   $("applyBtn").disabled = on || !review?.suggestions.some((x) => x.state === "accepted");
   $("recompileBtn").disabled = on || !dirty;
   document.querySelectorAll("#chips button").forEach((b) => (b.disabled = on));
+  if (!on && updatePending) setTimeout(() => location.reload(), 1500);
   busyBtn?.classList.remove("btn-busy");
   busyBtn = on ? btn : null;
   busyBtn?.classList.add("btn-busy");
@@ -201,25 +202,41 @@ function showView(name) {
 // Run a long action. Events stream in; if the connection drops (phone locked, app
 // switched), the job keeps running on the server and we poll it to completion. The job id
 // is remembered so a reload can pick the job up again.
+const STALL_MS = 25_000; // the server pings every 10s; silence this long means the stream is dead
 async function runJob(url, init, onEvent, memoryKey) {
   let jobId = null;
+  let finished = false;
+  const ctrl = new AbortController();
+  let watchdog = null;
+  const kick = () => {
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => ctrl.abort(new TypeError("stalled")), STALL_MS);
+  };
   const handle = (evt) => {
+    kick();
     if (evt.type === "job") {
       jobId = evt.id;
       remember(memoryKey, jobId);
       return;
     }
     if (evt.type === "ping") return;
-    if (evt.type === "done" || evt.type === "error") forget(memoryKey);
+    if (evt.type === "done" || evt.type === "error") {
+      finished = true;
+      forget(memoryKey);
+    }
     onEvent(evt);
   };
   try {
-    const res = await fetch(url, init);
+    kick();
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
     await streamJson(res, handle);
   } catch (err) {
-    if (!jobId || !isNetworkError(err)) throw err;
-    setBusyText("Connection dropped, reconnecting…");
+    if (finished) return;
+    if (!jobId || !(isNetworkError(err) || err.name === "AbortError" || ctrl.signal.aborted)) throw err;
+    setBusyText("Reconnecting…");
     await pollJob(jobId, handle);
+  } finally {
+    clearTimeout(watchdog);
   }
 }
 
@@ -437,6 +454,34 @@ async function openResume(id) {
     };
     renderReview();
     locateSuggestions();
+  }
+}
+
+// A conversion started before a reload (or while the phone was away) keeps running on
+// the server; find it and follow it to the new resume.
+async function resumePendingConvert() {
+  const active = await fetch("/api/jobs/active").then((r) => r.json()).catch(() => null);
+  if (!active || active.kind !== "convert") return;
+  state = { id: active.resumeId, name: "", current: 0, versions: [], messages: [] };
+  showView("editor");
+  $("messages").innerHTML = "";
+  addMessage("user", "Your upload is still converting");
+  setBusy(true, active.lastStatus || "Picking up where it left off…");
+  try {
+    await pollJob(active.id, (evt) => {
+      if (evt.type === "done") {
+        state = evt.state;
+        render(evt.tex);
+        toast("Converted.");
+        refreshPicker(state.id);
+        if (isMobile()) setPanel("pdf");
+      }
+      if (evt.type === "error") addMessage("error", evt.message, null, true, evt.log);
+    });
+  } catch (err) {
+    addMessage("error", explainError(err));
+  } finally {
+    setBusy(false);
   }
 }
 
@@ -1413,5 +1458,26 @@ window.addEventListener("beforeunload", (e) => {
   const id = location.hash.slice(1);
   await refreshPicker(id);
   if (id) openResume(id);
-  else newResume();
+  else {
+    newResume();
+    resumePendingConvert();
+  }
+  watchForUpdates();
 })();
+
+// c. Self-update: when a new build is deployed, reload (after any running job finishes).
+let updatePending = false;
+function watchForUpdates() {
+  if (!V) return;
+  const check = async () => {
+    try {
+      const { id } = await fetch("/api/build", { cache: "no-store" }).then((r) => r.json());
+      if (id && id !== V) {
+        updatePending = true;
+        if (!busy) location.reload();
+      }
+    } catch {}
+  };
+  setInterval(check, 60_000);
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && check());
+}

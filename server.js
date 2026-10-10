@@ -32,6 +32,10 @@ app.get("/healthz", async (_req, res) => {
   if (!(await checkClaudeCli())) missing.push(BACKEND === "bridge" ? `claude bridge at ${process.env.CLAUDE_BRIDGE_URL} (run \`npm run bridge\` on the host)` : "claude (set ANTHROPIC_API_KEY or install the Claude Code CLI)");
   res.status(missing.length ? 503 : 200).json({ ok: !missing.length, missingTools: missing, queue: queueStats() });
 });
+app.get("/api/build", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ id: BUILD_ID });
+});
 app.get("/api/auth", authInfo);
 app.post("/api/login", login);
 app.post("/api/signup", signup);
