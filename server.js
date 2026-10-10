@@ -15,6 +15,12 @@ const MAX_FIX_ATTEMPTS = 2;
 
 const app = express();
 app.disable("x-powered-by");
+// Behind a proxy, send plain-http visitors to https: sessions use Secure cookies and
+// Google sign-in needs the https callback URL. Local (no proxy) traffic is untouched.
+app.use((req, res, next) => {
+  if (req.headers["x-forwarded-proto"] === "http") return res.redirect(301, `https://${req.headers["x-forwarded-host"] || req.headers.host}${req.originalUrl}`);
+  next();
+});
 app.use(express.json({ limit: "2mb" }));
 // Unauthenticated health check for uptime monitors.
 app.get("/healthz", async (_req, res) => {
