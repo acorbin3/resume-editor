@@ -97,31 +97,66 @@ function setBusy(on, text = "Working…", btn = null) {
   $("suggestions").classList.toggle("working", on && btn === $("applyBtn"));
   if (on && btn === $("applyBtn")) $("suggestions").dataset.working = text;
   clearInterval(timerHandle);
-  $("chatStatus").hidden = !on;
   clearInterval(glyphTimer);
+  pending?.remove();
+  pending = null;
   if (on) {
+    pending = document.createElement("div");
+    pending.className = "msg assistant pending";
+    pending.innerHTML = `<span class="cc-glyph">✻</span><span class="cc-text"></span><span class="cc-dots"><i>.</i><i>.</i><i>.</i></span><span class="cc-time">0s</span>`;
+    $("messages").append(pending);
     $("messages").scrollTop = $("messages").scrollHeight;
     const start = Date.now();
     $("busyTimer").textContent = "";
-    $("chatStatus").querySelector(".cc-time").textContent = "(0s)";
     timerHandle = setInterval(() => {
       const secs = Math.round((Date.now() - start) / 1000);
       $("busyTimer").textContent = `${secs}s`;
-      $("chatStatus").querySelector(".cc-time").textContent = `(${secs}s)`;
+      if (pending) pending.querySelector(".cc-time").textContent = `${secs}s`;
     }, 1000);
     // The glyph cycles like Claude Code's spinner.
     let g = 0;
     glyphTimer = setInterval(() => {
-      $("chatStatus").querySelector(".cc-glyph").textContent = GLYPHS[g++ % GLYPHS.length];
+      if (pending) pending.querySelector(".cc-glyph").textContent = GLYPHS[g++ % GLYPHS.length];
     }, 140);
     startPhrases();
   } else {
     clearInterval(phraseTimer);
+    clearInterval(scrambleTimer);
   }
   setBusyText(text);
 }
 const GLYPHS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 let glyphTimer = null;
+let pending = null;
+
+// New status text "decodes" into place: characters start as noise and resolve left to
+// right. Trailing dots are dropped (the breathing ellipsis replaces them).
+const NOISE = "!<>-_\\/[]{}=+*^?#%&@~░▒▓";
+let scrambleTimer = null;
+function decodeInto(el, text) {
+  clearInterval(scrambleTimer);
+  const target = text.replace(/[…\.]+$/, "");
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    el.textContent = target;
+    return;
+  }
+  const frames = 14;
+  let frame = 0;
+  scrambleTimer = setInterval(() => {
+    frame++;
+    let html = "";
+    for (let i = 0; i < target.length; i++) {
+      const settleAt = (i / target.length) * frames * 0.75;
+      if (target[i] === " " || frame > settleAt + 2) html += escapeHtml(target[i]);
+      else html += `<span class="scr">${escapeHtml(NOISE[Math.floor(Math.random() * NOISE.length)])}</span>`;
+    }
+    el.innerHTML = html;
+    if (frame >= frames) {
+      clearInterval(scrambleTimer);
+      el.textContent = target;
+    }
+  }, 36);
+}
 
 const PHRASES = ["Thinking…", "Cooking…", "Reading between the lines…", "Weighing every bullet…", "Hunting for orphan words…", "Polishing…", "Counting the metrics…", "Tightening the wording…", "Typesetting…", "Almost there…"];
 let lastStatusAt = 0;
@@ -129,7 +164,14 @@ let phraseTimer = null;
 function setBusyText(text, fromServer = true) {
   if (fromServer) lastStatusAt = Date.now();
   $("busyText").textContent = text;
-  $("chatStatus").querySelector(".cc-text").textContent = text;
+  if (pending) {
+    const t = pending.querySelector(".cc-text");
+    if (t.dataset.text !== text) {
+      t.dataset.text = text;
+      decodeInto(t, text);
+      $("messages").scrollTop = $("messages").scrollHeight;
+    }
+  }
   if (workingToast) workingToast.lastChild.textContent = text;
   if ($("suggestions").classList.contains("working")) $("suggestions").dataset.working = text;
 }
