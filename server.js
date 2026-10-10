@@ -3,7 +3,7 @@ import multer from "multer";
 import Anthropic from "@anthropic-ai/sdk";
 import { diffLines, diffWords } from "diff";
 import { compileTex, checkTools, pdfToText, parseSynctex } from "./lib/latex.js";
-import { BACKEND, textIsUsable, convertPdf, editTex, analyzeTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
+import { BACKEND, checkClaudeCli, textIsUsable, convertPdf, editTex, analyzeTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
 import * as store from "./lib/store.js";
 import { signupOpen, requireAuth, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
 import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
@@ -19,6 +19,7 @@ app.use(express.json({ limit: "2mb" }));
 // Unauthenticated health check for uptime monitors.
 app.get("/healthz", async (_req, res) => {
   const missing = await checkTools();
+  if (!(await checkClaudeCli())) missing.push("claude (set ANTHROPIC_API_KEY or install the Claude Code CLI)");
   res.status(missing.length ? 503 : 200).json({ ok: !missing.length, missingTools: missing, queue: queueStats() });
 });
 app.get("/api/auth", authInfo);
@@ -346,4 +347,5 @@ app.listen(PORT, HOST, async () => {
   const missing = await checkTools();
   if (missing.length) console.warn(`Missing tools: ${missing.join(", ")} (brew install tectonic poppler)`);
   console.log(BACKEND === "api" ? "Using the Anthropic API." : "No ANTHROPIC_API_KEY: using `claude -p` (Claude Code login).");
+  if (!(await checkClaudeCli())) console.error("ERROR: no ANTHROPIC_API_KEY and no `claude` CLI on PATH. Conversions will fail until one is set.");
 });

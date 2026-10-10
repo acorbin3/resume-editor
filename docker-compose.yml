@@ -1,0 +1,33 @@
+# Local or single-server deployment.
+#   cp .env.example .env   # set ANTHROPIC_API_KEY (required in Docker: no `claude -p` here)
+#   docker compose up -d --build
+#   open http://localhost:4747
+services:
+  app:
+    build: .
+    image: resume-editor
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4747}:3000"
+    env_file:
+      - .env
+    environment:
+      # Inside the container the app always listens on 3000; PORT above is the host side.
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      DATA_DIR: /data
+    volumes:
+      - resume-data:/data
+    # LaTeX compiles run inside this container; keep it unprivileged and resource-capped.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
+
+volumes:
+  resume-data:

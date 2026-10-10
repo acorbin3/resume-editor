@@ -110,6 +110,30 @@ Upgrading from the pre-database layout: create your account in the app, then
 - `POSTHOG_KEY` / `POSTHOG_HOST`: product analytics.
 - `DATA_DIR`: where the database, repos, and blobs live (default `./data`).
 
+## Docker (try it out, or deploy)
+
+```bash
+cp .env.example .env            # set ANTHROPIC_API_KEY (required: there's no `claude` CLI in the image)
+docker compose up -d --build    # first build downloads tectonic and warms its package cache
+open http://localhost:4747
+```
+
+Data lives in the `resume-data` volume. The container runs as an unprivileged user with all
+capabilities dropped, which is the LaTeX sandbox on Linux. `GET /healthz` is the container health check.
+
+### Deploy to a VPS
+
+`deploy/deploy.sh` sets up a fresh Ubuntu/Debian server (Hetzner, DigitalOcean, …) with Docker,
+Caddy for automatic HTTPS, the app, and a nightly backup of the data volume:
+
+```bash
+ssh root@your-server 'bash -s' < deploy/deploy.sh resume.example.com you@example.com
+# then set ANTHROPIC_API_KEY in /opt/resume-editor/.env and: cd /opt/resume-editor && docker compose up -d
+```
+
+Point the domain's DNS at the server first so Caddy can get a certificate. Re-run the same command
+to update.
+
 ## Running it as a service (macOS)
 
 1. Set `SIGNUP_CODE` in `.env` so strangers can't create accounts.
