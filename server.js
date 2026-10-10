@@ -1,12 +1,15 @@
 import express from "express";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import multer from "multer";
 import Anthropic from "@anthropic-ai/sdk";
 import { diffLines, diffWords } from "diff";
 import { compileTex, checkTools, pdfToText, parseSynctex } from "./lib/latex.js";
-import { BACKEND, checkClaudeCli, textIsUsable, convertPdf, editTex, analyzeTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
+import { BACKEND, checkClaudeCli, textIsUsable, convertPdf, editTex, analyzeTex, tailorTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
+import { atsCheck, repeatEmployers, fetchJobPosting, pageWordCounts } from "./lib/ats.js";
+import { scoreKeywords } from "./public/keywords.js";
 import * as store from "./lib/store.js";
 import { signupOpen, requireAuth, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
 import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
@@ -307,18 +310,160 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
     const built = await compileWithRepair(edited, { send, history, source, fitOnePage: false });
     const titles = accepted.filter((r) => !failed.includes(r)).map((r) => r.title || "suggestion");
     const n = accepted.length - failed.length;
+    // A tailoring review labels the version after the job and reports the new keyword match.
+    const review = store.getReview(meta);
+    const tailored = review?.kind === "tailor" && review.version === meta.current ? review : null;
+    const jobName = tailored ? [tailored.job?.company, tailored.job?.title].filter(Boolean).join(": ") : "";
+    const keywords = tailored?.keywords?.length ? scoreKeywords(tailored.keywords, built.tex) : null;
+    const applied = failed.length ? `Applied ${n}. ${failed.length} no longer matched the document and were skipped.` : `Applied ${n} suggestion${n === 1 ? "" : "s"}.`;
     store.addMessages(meta, [
-      { role: "user", text: `Accepted ${n} suggestion${n === 1 ? "" : "s"}:\n${titles.map((t) => `- ${t}`).join("\n")}` },
+      { role: "user", text: `${tailored ? `Tailored for ${jobName || "the job posting"}. ` : ""}Accepted ${n} suggestion${n === 1 ? "" : "s"}:\n${titles.map((t) => `- ${t}`).join("\n")}` },
       {
         role: "assistant",
-        text: failed.length ? `Applied ${n}. ${failed.length} no longer matched the document and were skipped.` : `Applied ${n} suggestion${n === 1 ? "" : "s"}.`,
+        text: keywords ? `${applied} Keyword match is now ${keywords.pct}% (${keywords.present.length} of ${keywords.present.length + keywords.missing.length}).` : applied,
         version: meta.versions.length + 1,
       }
     ]);
-    await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: `Applied ${n} suggestion${n === 1 ? "" : "s"}` });
+    const label = tailored ? `Tailored for ${jobName || "job posting"}`.slice(0, 80) : `Applied ${n} suggestion${n === 1 ? "" : "s"}`;
+    await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label });
     store.clearReview(meta);
-    track(req.user.id, "suggestions_applied", { accepted: n, skipped: failed.length });
-    send({ type: "done", state: publicState(meta), tex: built.tex, skipped: failed.length });
+    track(req.user.id, tailored ? "tailoring_applied" : "suggestions_applied", { accepted: n, skipped: failed.length, match: keywords?.pct });
+    send({ type: "done", state: publicState(meta), tex: built.tex, skipped: failed.length, keywords });
+  } catch (err) {
+    console.error(err);
+    trackError(req.user.id, req.path, err);
+    send({ type: "error", message: errorMessage(err), log: err.log });
+  }
+  res.end();
+});
+
+// Tailor to a job posting: pasted text or a link. Produces a keyword match score plus
+// suggestions in the same shape as /analyze, so accept/edit/skip/apply is shared.
+app.post("/api/resumes/:id/tailor", async (req, res) => {
+  const pasted = String(req.body.job || "").trim();
+  const url = String(req.body.url || "").trim();
+  if (!pasted && !url) return res.status(400).json({ error: "Paste the job description or a link to it." });
+  const meta = lookup(req, res);
+  if (!meta) return;
+  const send = ndjson(res, createJob(req.user.id, meta.id, "tailor"));
+  try {
+    if (!meta.current) throw new Error("Nothing to tailor yet.");
+    let job = { title: null, company: null, text: pasted.slice(0, 20_000), url: null };
+    if (url) {
+      send({ type: "status", message: "Reading the job posting…" });
+      job = await fetchJobPosting(url);
+    } else if (pasted.split(/\s+/).length < 25) {
+      throw new Error("That's too short to be a job description. Paste the full posting (or a link to it).");
+    }
+    const tex = await store.getTex(meta, meta.current);
+    const source = await store.getSource(meta);
+    send({ type: "status", message: "Claude is matching the resume to the posting…" });
+    const result = await claudeLane.run(() => tailorTex(tex, job, { source, onProgress: send }), (pos) => send({ type: "status", message: `Waiting for Claude (${pos} ahead)…` }));
+    const before = scoreKeywords(result.keywords, tex);
+    const after = scoreKeywords(result.keywords, applyReplacements(tex, result.suggestions).tex);
+    const review = { kind: "tailor", summary: result.summary, job: { ...result.job, url: job.url }, keywords: result.keywords, before, after, suggestions: result.suggestions, dropped: result.dropped };
+    store.saveReview(meta, meta.current, review);
+    store.addMessages(meta, [
+      { role: "user", text: `Tailor to: ${[result.job.company, result.job.title].filter(Boolean).join(", ") || job.url || "pasted job description"}` },
+      { role: "assistant", text: `${result.summary} Keyword match: ${before.pct}% now, ${after.pct}% with every suggestion accepted.` },
+    ]);
+    track(req.user.id, "resume_tailored", { suggestions: result.suggestions.length, keywords: result.keywords.length, before: before.pct, after: after.pct, viaUrl: !!url, backend: BACKEND });
+    send({ type: "done", version: meta.current, messages: meta.messages.slice(-2), ...review });
+  } catch (err) {
+    console.error(err);
+    trackError(req.user.id, req.path, err);
+    send({ type: "error", message: errorMessage(err) });
+  }
+  res.end();
+});
+
+// Fit to one page: up to three increasingly firm passes, each told how much spilled over.
+app.post("/api/resumes/:id/fit", async (req, res) => {
+  const meta = lookup(req, res);
+  if (!meta) return;
+  const send = ndjson(res, createJob(req.user.id, meta.id, "fit"));
+  try {
+    if (!meta.current) throw new Error("Nothing to fit yet.");
+    const current = meta.versions.find((v) => v.n === meta.current);
+    if (current?.pages === 1) {
+      send({ type: "done", state: publicState(meta), tex: await store.getTex(meta, meta.current), alreadyFits: true });
+      return res.end();
+    }
+    let tex = await store.getTex(meta, meta.current);
+    let pdf = await readFile(store.pdfPath(meta, meta.current));
+    let pages = current?.pages || 2;
+    const history = meta.messages.filter((m) => m.role === "user").map((m) => m.text).slice(-8);
+    const source = await store.getSource(meta);
+    const summaries = [];
+    let built = null;
+    for (let round = 1; round <= 3 && pages > 1; round++) {
+      const counts = await pageWordCounts(pdf, pages);
+      const overflow = counts.slice(1).reduce((a, b) => a + b, 0);
+      send({ type: "status", message: round === 1 ? `${pages} pages, about ${overflow} words over. Claude is tightening…` : `Still ${pages} pages (${overflow} words over). Pass ${round}, cutting deeper…` });
+      const edited = await claudeLane.run(() => editTex(tex, fitPageRequest(pages, overflow, round), { history, source, onProgress: send }), (pos) => send({ type: "status", message: `Waiting for Claude (${pos} ahead)…` }));
+      built = await compileWithRepair(edited.tex, { send, history, source, fitOnePage: false });
+      summaries.push(edited.summary);
+      tex = built.tex;
+      pdf = built.pdf;
+      pages = built.pages || 1;
+    }
+    const fits = pages === 1;
+    store.addMessages(meta, [
+      { role: "user", text: "Fit to one page" },
+      { role: "assistant", text: fits ? `Now one page. ${summaries.join(" ")}` : `Still ${pages} pages after three passes. ${summaries.at(-1)} Try removing a role or section by hand, or tell me what can go.`, version: meta.versions.length + 1 },
+    ]);
+    await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: fits ? "Fit to one page" : `Tightened (still ${pages} pages)` });
+    track(req.user.id, "fit_one_page", { fits, rounds: summaries.length, backend: BACKEND });
+    send({ type: "done", state: publicState(meta), tex: built.tex, fits, pages });
+  } catch (err) {
+    console.error(err);
+    trackError(req.user.id, req.path, err);
+    send({ type: "error", message: errorMessage(err), log: err.log });
+  }
+  res.end();
+});
+
+// ATS parse check for a version. Deterministic (pdftotext, pdffonts, pdfimages), so it's
+// free and runs on demand; results are cached per version for the process lifetime.
+const atsCache = new Map();
+app.get("/api/resumes/:id/v/:n/ats", async (req, res) => {
+  try {
+    const meta = await store.getMeta(req.user.id, req.params.id);
+    const n = Number(req.params.n);
+    const ver = meta.versions.find((v) => v.n === n);
+    if (!ver) return res.status(404).json({ error: "No such version." });
+    const key = `${meta.id}:${n}`;
+    if (!atsCache.has(key)) {
+      const [tex, pdf] = await Promise.all([store.getTex(meta, n), readFile(store.pdfPath(meta, n))]);
+      atsCache.set(key, await atsCheck({ tex, pdf, pages: ver.pages || 1 }));
+      if (atsCache.size > 500) atsCache.delete(atsCache.keys().next().value);
+    }
+    res.json(atsCache.get(key));
+  } catch (err) {
+    res.status(err.status || 500).json({ error: errorMessage(err) });
+  }
+});
+
+// Deterministic ATS fixes (no Claude unless the result fails to compile).
+app.post("/api/resumes/:id/ats-fix", async (req, res) => {
+  const fix = String(req.body.fix || "");
+  const meta = lookup(req, res);
+  if (!meta) return;
+  const send = ndjson(res, createJob(req.user.id, meta.id, "ats-fix"));
+  try {
+    if (fix !== "repeat-employers") throw new Error("Unknown fix.");
+    const tex = await store.getTex(meta, meta.current);
+    const { tex: fixed, changed } = repeatEmployers(tex);
+    if (!changed) throw new Error("No second titles found to fix.");
+    const history = meta.messages.filter((m) => m.role === "user").map((m) => m.text).slice(-8);
+    const built = await compileWithRepair(fixed, { send, history, source: null, fitOnePage: false });
+    store.addMessages(meta, [
+      { role: "user", text: "ATS fix: repeat the employer on each role" },
+      { role: "assistant", text: `Rewrote ${changed} second title${changed > 1 ? "s" : ""} as full headings with the employer and location, so every role parses with its company.`, version: meta.versions.length + 1 },
+    ]);
+    await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: "ATS: employer on every role" });
+    track(req.user.id, "ats_fix_applied", { fix, changed });
+    send({ type: "done", state: publicState(meta), tex: built.tex, changed });
   } catch (err) {
     console.error(err);
     trackError(req.user.id, req.path, err);

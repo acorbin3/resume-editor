@@ -1,10 +1,11 @@
 // Imports carry the same ?v= build id as this file so a deploy refreshes everything together.
 const V = new URL(import.meta.url).searchParams.get("v") || "";
 const q = V ? `?v=${V}` : "";
-const [pdfjsLib, { createEditor }, { buildSyncMap, lineAtPoint, boxForLine }] = await Promise.all([
+const [pdfjsLib, { createEditor }, { buildSyncMap, lineAtPoint, boxForLine }, { scoreKeywords }] = await Promise.all([
   import(`/vendor/pdfjs/pdf.min.mjs${q}`),
   import(`/vendor/editor.js${q}`),
   import(`/syncmap.js${q}`),
+  import(`/keywords.js${q}`),
 ]);
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `/vendor/pdfjs/pdf.worker.min.mjs${q}`;
@@ -81,6 +82,7 @@ function setBusy(on, text = "Working…", btn = null) {
   $("progress").hidden = !on;
   $("sendBtn").disabled = on;
   $("analyzeBtn").disabled = on;
+  $("tailorGo").disabled = on;
   $("applyBtn").disabled = on || !review?.suggestions.some((x) => x.state === "accepted");
   $("recompileBtn").disabled = on || !dirty;
   document.querySelectorAll("#chips button").forEach((b) => (b.disabled = on));
@@ -284,10 +286,11 @@ async function resumePendingJob(resumeId) {
 }
 
 function applyJobResult(kind, evt) {
-  if (kind === "analyze") {
-    review = { version: evt.version, summary: evt.summary, suggestions: evt.suggestions.map((sg) => ({ ...sg, state: "pending", edited: null })) };
+  if (kind === "analyze" || kind === "tailor") {
+    review = makeReview(evt);
     renderReview();
     locateSuggestions();
+    if (kind === "tailor" && evt.messages) for (const m of evt.messages) addMessage(m.role, m.text, m.version);
   } else if (evt.state) {
     state = evt.state;
     render(evt.tex);
@@ -354,6 +357,9 @@ function render(tex) {
     const pages = ver?.pages;
     $("pageInfo").textContent = `Version ${v}${pages ? ` · ${pages} page${pages > 1 ? "s" : ""}` : ""}`;
     $("pageInfo").classList.toggle("warn", pages > 1);
+    $("fitBtn").classList.toggle("chip-warn", pages > 1);
+    $("fitBtn").textContent = pages > 1 ? `Fit to one page (${pages} now)` : "Fit to one page";
+    refreshAtsBadge();
   }
   if (tex !== undefined) {
     savedTex = tex;
@@ -438,15 +444,24 @@ async function openResume(id) {
   }
   resumePendingJob(id);
   // Bring back an analysis that finished after the connection dropped (or from last time).
-  if (data.review?.suggestions?.length) {
-    review = {
-      version: data.review.version,
-      summary: data.review.summary,
-      suggestions: data.review.suggestions.map((sg) => ({ ...sg, state: "pending", edited: null })),
-    };
+  if (data.review?.suggestions?.length || data.review?.keywords?.length) {
+    review = makeReview(data.review);
     renderReview();
     locateSuggestions();
   }
+}
+
+// Review state from an analyze or tailor result (fresh, saved, or from a resumed job).
+function makeReview(data) {
+  return {
+    kind: data.kind || "analyze",
+    version: data.version,
+    summary: data.summary,
+    job: data.job || null,
+    keywords: data.keywords || null,
+    before: data.before || null,
+    suggestions: (data.suggestions || []).map((sg) => ({ ...sg, state: "pending", edited: null })),
+  };
 }
 
 // A conversion started before a reload (or while the phone was away) keeps running on
@@ -1056,11 +1071,7 @@ async function analyze() {
     }, (evt) => {
       progressHandler(evt);
       if (evt.type === "done") {
-        review = {
-          version: evt.version,
-          summary: evt.summary,
-          suggestions: evt.suggestions.map((sg) => ({ ...sg, state: "pending", edited: null })),
-        };
+        review = makeReview(evt);
         $("promptInput").value = "";
         renderReview();
         locateSuggestions();
@@ -1112,8 +1123,11 @@ function renderReview() {
     return;
   }
   panel.hidden = false;
-  $("suggestionsTitle").textContent = `${review.suggestions.length} suggestions · version ${review.version}`;
+  const jobName = review.job ? [review.job.company, review.job.title].filter(Boolean).join(" · ") : "";
+  $("suggestionsTitle").textContent =
+    review.kind === "tailor" ? `Tailored for ${jobName || "the posting"} · v${review.version}` : `${review.suggestions.length} suggestions · version ${review.version}`;
   $("suggestionsSummary").textContent = review.summary;
+  renderMatch();
   const list = $("suggestionList");
   list.innerHTML = "";
   for (const sg of review.suggestions) {
@@ -1144,6 +1158,53 @@ function closeReview() {
   review = null;
   renderReview();
 }
+
+// Keyword match meter for a tailoring review. The live score reflects what is accepted
+// right now; the ghost segment shows what accepting everything would add.
+function renderMatch() {
+  const box = $("match");
+  if (!review?.keywords?.length) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const accepted = review.suggestions.filter((x) => x.state === "accepted").map((x) => ({ find: x.find, replace: x.edited ?? x.replace }));
+  const all = review.suggestions.filter((x) => x.state !== "skipped").map((x) => ({ find: x.find, replace: x.edited ?? x.replace }));
+  const live = scoreKeywords(review.keywords, applyLocal(savedTex, accepted));
+  const potential = scoreKeywords(review.keywords, applyLocal(savedTex, all));
+  const before = review.before?.pct ?? scoreKeywords(review.keywords, savedTex).pct;
+  $("matchPct").innerHTML = `<b>${live.pct}%</b>${potential.pct > live.pct ? ` <span class="muted">→ ${potential.pct}% if you accept the rest</span>` : before !== live.pct ? ` <span class="muted">was ${before}%</span>` : ""}`;
+  $("matchFill").style.width = `${live.pct}%`;
+  $("matchGhost").style.width = `${Math.max(0, potential.pct - live.pct)}%`;
+  $("matchGhost").style.left = `${live.pct}%`;
+  const gained = new Set(live.present.filter((k) => !(review.before?.present || []).includes(k)));
+  const reachable = new Set(potential.present);
+  $("matchWords").innerHTML = review.keywords
+    .map((k) => {
+      const cls = live.present.includes(k) ? (gained.has(k) ? "kw gained" : "kw present") : reachable.has(k) ? "kw reachable" : "kw missing";
+      const tip = cls.endsWith("gained") ? "Added by an accepted suggestion" : cls.endsWith("present") ? "Already in the resume" : cls.endsWith("reachable") ? "Added if you accept the remaining suggestions" : "Not in the resume. Tap to add it, if it's true for you.";
+      return `<button type="button" class="${cls}" data-kw="${escapeHtml(k)}" title="${tip}">${escapeHtml(k)}</button>`;
+    })
+    .join("");
+}
+
+// Same find/replace rule as the server, for the live score.
+function applyLocal(tex, replacements) {
+  let out = tex;
+  for (const r of replacements) {
+    const first = out.indexOf(r.find);
+    if (first >= 0 && out.indexOf(r.find, first + 1) < 0) out = out.slice(0, first) + r.replace + out.slice(first + r.find.length);
+  }
+  return out;
+}
+
+$("matchWords").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-kw]");
+  if (!b || !b.classList.contains("missing")) return;
+  $("promptInput").value = `If it's true for me, add "${b.dataset.kw}" where it fits best (the Skills section or the most relevant bullet). Don't invent experience.`;
+  autoGrow();
+  $("promptInput").focus();
+});
 
 $("suggestionList").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-act]");
@@ -1206,7 +1267,13 @@ $("applyBtn").onclick = async () => {
         render(evt.tex);
         if (evt.skipped) addMessage("error", `${evt.skipped} suggestion${evt.skipped > 1 ? "s" : ""} no longer matched and were skipped.`);
         const n = accepted.length - (evt.skipped || 0);
-        toast(`Applied ${n} suggestion${n === 1 ? "" : "s"}. Now on version ${evt.state.current}. Showing the changes.`, "done", 5000);
+        toast(
+          evt.keywords
+            ? `Applied ${n}. Keyword match is now ${evt.keywords.pct}%. Version ${evt.state.current}.`
+            : `Applied ${n} suggestion${n === 1 ? "" : "s"}. Now on version ${evt.state.current}. Showing the changes.`,
+          "done",
+          5000
+        );
         if (isMobile()) setPanel("diff");
         else setView("diff");
       }
@@ -1225,6 +1292,193 @@ $("applyBtn").onclick = async () => {
     setBusy(false);
   }
 };
+
+// ---------- Tailor to a job ----------
+
+function openTailor() {
+  if (busy || !state?.id || !state.current) return;
+  $("ats").hidden = true;
+  $("tailor").hidden = false;
+  $("tailorHint").textContent = "";
+  $("jobInput").focus();
+}
+$("tailorBtn").onclick = openTailor;
+$("closeTailor").onclick = () => ($("tailor").hidden = true);
+$("jobInput").addEventListener("input", () => {
+  const v = $("jobInput").value.trim();
+  $("tailorHint").textContent = /^https?:\/\/\S+$/.test(v) ? "Link detected: the posting will be fetched" : v ? `${v.split(/\s+/).length} words` : "";
+});
+$("tailor").onsubmit = async (e) => {
+  e.preventDefault();
+  if (busy || !state?.id) return;
+  if (dirty) {
+    toast("Recompile your LaTeX edits first (⌘S) so the tailoring covers the latest version.", "error", 5000);
+    return;
+  }
+  const v = $("jobInput").value.trim();
+  if (!v) return toast("Paste the job description or a link first.", "error", 4000);
+  const isUrl = /^https?:\/\/\S+$/.test(v);
+  addMessage("user", isUrl ? `Tailor to: ${v}` : `Tailor to a pasted job description (${v.split(/\s+/).length} words)`);
+  setBusy(true, isUrl ? "Reading the job posting…" : "Claude is matching the resume to the posting…", $("tailorGo"));
+  try {
+    await runJob(`/api/resumes/${state.id}/tailor`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(isUrl ? { url: v } : { job: v }),
+    }, (evt) => {
+      progressHandler(evt);
+      if (evt.type === "done") {
+        $("tailor").hidden = true;
+        $("jobInput").value = "";
+        review = makeReview(evt);
+        // The server appended two chat messages; show them without a reload.
+        for (const m of evt.messages || []) addMessage(m.role, m.text, m.version);
+        renderReview();
+        locateSuggestions();
+        toast(`Keyword match ${evt.before.pct}% → up to ${evt.after.pct}%. ${evt.suggestions.length} suggestions ready.`, "done", 6000);
+        if (isMobile()) setPanel("chat");
+      }
+      if (evt.type === "error") {
+        toast(evt.message, "error", 7000);
+        addMessage("error", evt.message);
+      }
+    }, `job:${state.id}`);
+  } catch (err) {
+    addMessage("error", explainError(err));
+  } finally {
+    setBusy(false);
+  }
+};
+
+// ---------- Fit to one page ----------
+
+$("fitBtn").onclick = async () => {
+  if (busy || !state?.id || !state.current) return;
+  if (dirty) return toast("Recompile your LaTeX edits first (⌘S).", "error", 5000);
+  addMessage("user", "Fit to one page");
+  setBusy(true, "Measuring the overflow…", $("fitBtn"));
+  try {
+    await runJob(`/api/resumes/${state.id}/fit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }, (evt) => {
+      progressHandler(evt);
+      if (evt.type === "done") {
+        if (evt.alreadyFits) {
+          $("messages").lastElementChild?.remove();
+          toast("Already one page.", "done", 3000);
+          return;
+        }
+        state = evt.state;
+        render(evt.tex);
+        toast(evt.fits ? `Fits on one page now. Version ${evt.state.current}.` : `Still ${evt.pages} pages after three passes. See the chat for what to cut.`, evt.fits ? "done" : "error", 6000);
+        if (isMobile()) setPanel("pdf");
+      }
+      if (evt.type === "error") {
+        toast(evt.message, "error", 6000);
+        addMessage("error", evt.message, null, true, evt.log);
+      }
+    }, `job:${state.id}`);
+  } catch (err) {
+    addMessage("error", explainError(err));
+  } finally {
+    setBusy(false);
+  }
+};
+
+// ---------- ATS check ----------
+
+let atsResult = null; // { version, ...result }
+async function fetchAts(version) {
+  const res = await fetch(`/api/resumes/${state.id}/v/${version}/ats`);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "ATS check failed.");
+  return { version, ...(await res.json()) };
+}
+
+// The chip shows the score for the version on screen, so problems are visible without opening the panel.
+let atsBadgeToken = 0;
+async function refreshAtsBadge() {
+  const token = ++atsBadgeToken;
+  const v = state?.current;
+  if (!state?.id || !v) return;
+  try {
+    const r = atsResult?.version === v && atsResult.resumeId === state.id ? atsResult : { ...(await fetchAts(v)), resumeId: state.id };
+    if (token !== atsBadgeToken) return;
+    atsResult = r;
+    const bad = r.checks.filter((c) => c.status === "fail").length;
+    const warn = r.checks.filter((c) => c.status === "warn").length;
+    $("atsBtn").textContent = bad ? `ATS ${r.passed}/${r.total} ✗` : warn ? `ATS ${r.passed}/${r.total} ⚠` : `ATS ${r.passed}/${r.total} ✓`;
+    $("atsBtn").className = bad ? "chip-bad" : warn ? "chip-warn" : "chip-good";
+    if (!$("ats").hidden) renderAts();
+  } catch {
+    $("atsBtn").textContent = "ATS check";
+    $("atsBtn").className = "";
+  }
+}
+
+const ATS_ICON = { pass: "✅", warn: "⚠️", fail: "❌", info: "ℹ️" };
+function renderAts() {
+  const r = atsResult;
+  if (!r) return;
+  $("ats").hidden = false;
+  $("tailor").hidden = true;
+  $("atsTitle").textContent = `ATS check · ${r.passed}/${r.total} · v${r.version}`;
+  const fails = r.checks.filter((c) => c.status === "fail").length;
+  const warns = r.checks.filter((c) => c.status === "warn").length;
+  $("atsSummary").textContent = fails
+    ? "A parser would lose part of this resume. Fix the red items first."
+    : warns
+      ? "Parses, with a few things worth fixing."
+      : "Parses cleanly: text, order, contact details, headings, and dates all read the way an applicant tracking system expects.";
+  $("atsList").innerHTML = r.checks
+    .map(
+      (c) => `<li class="ats-${c.status}"><span class="ats-ico">${ATS_ICON[c.status]}</span><div><div class="ats-label">${escapeHtml(c.label)}</div><div class="ats-detail">${escapeHtml(c.detail)}</div>${
+        c.fix ? `<button type="button" class="btn small ats-fix" data-fix="${c.fix}">${escapeHtml(c.fixLabel || "Fix")}</button>` : ""
+      }</div></li>`
+    )
+    .join("");
+}
+$("atsBtn").onclick = async () => {
+  if (!state?.id || !state.current) return;
+  if (!$("ats").hidden) return ($("ats").hidden = true);
+  if (dirty) toast("Checking the last compiled version; recompile (⌘S) to check your edits.", "error", 4000);
+  $("atsBtn").classList.add("btn-busy");
+  try {
+    if (!(atsResult?.version === state.current && atsResult.resumeId === state.id)) atsResult = { ...(await fetchAts(state.current)), resumeId: state.id };
+    renderAts();
+    $("ats").scrollIntoView({ block: "nearest" });
+  } catch (err) {
+    toast(err.message, "error", 5000);
+  } finally {
+    $("atsBtn").classList.remove("btn-busy");
+    refreshAtsBadge();
+  }
+};
+$("closeAts").onclick = () => ($("ats").hidden = true);
+$("atsList").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-fix]");
+  if (!b || busy || !state?.id) return;
+  if (dirty) return toast("Recompile your LaTeX edits first (⌘S).", "error", 5000);
+  addMessage("user", "ATS fix: repeat the employer on each role");
+  setBusy(true, "Rewriting the role headings…", b);
+  try {
+    await runJob(`/api/resumes/${state.id}/ats-fix`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fix: b.dataset.fix }) }, (evt) => {
+      progressHandler(evt);
+      if (evt.type === "done") {
+        state = evt.state;
+        render(evt.tex);
+        toast(`Fixed ${evt.changed} role${evt.changed > 1 ? "s" : ""}. Version ${evt.state.current}.`, "done", 5000);
+        $("ats").hidden = true;
+        if (isMobile()) setPanel("pdf");
+      }
+      if (evt.type === "error") {
+        toast(evt.message, "error", 6000);
+        addMessage("error", evt.message, null, true, evt.log);
+      }
+    }, `job:${state.id}`);
+  } catch (err) {
+    addMessage("error", explainError(err));
+  } finally {
+    setBusy(false);
+  }
+});
 
 // ---------- Changes (diff) view ----------
 

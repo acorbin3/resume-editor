@@ -191,6 +191,42 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
 .sg textarea { width: 100%; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .suggestions-actions { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--border); }
 
+/* Chip states (ATS score, page overflow) */
+.chips .chip-good { border-color: #16a34a; color: #15803d; }
+.chips .chip-warn { border-color: #d97706; color: #b45309; font-weight: 600; }
+.chips .chip-bad { border-color: #dc2626; color: #b91c1c; font-weight: 600; }
+
+/* Tailor form and ATS panel share the suggestions card look */
+.tailor, .ats { margin: 8px 16px 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; }
+.tailor p, .ats p { margin: 0; font-size: 13px; }
+.tailor textarea { width: 100%; font: inherit; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); resize: vertical; }
+.ats { max-height: 52vh; overflow-y: auto; }
+.ats ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ats li { display: flex; gap: 8px; padding: 7px 8px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; }
+.ats li.ats-fail { border-color: rgb(220 38 38 / 0.5); }
+.ats li.ats-warn { border-color: rgb(217 119 6 / 0.5); }
+.ats li.ats-info { opacity: 0.8; }
+.ats-ico { flex: 0 0 auto; font-size: 14px; line-height: 1.4; }
+.ats-label { font-weight: 600; }
+.ats-detail { color: var(--muted); margin-top: 2px; }
+.ats-fix { margin-top: 6px; }
+
+/* Keyword match meter */
+.match { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); }
+.match-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+.match-label { font-weight: 600; }
+.match-pct b { font-size: 16px; }
+.match-bar { position: relative; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.match-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #16a34a; border-radius: 4px; transition: width 0.35s ease; }
+.match-ghost { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgb(22 163 74 / 0.45) 0 4px, rgb(22 163 74 / 0.15) 4px 8px); transition: width 0.35s ease, left 0.35s ease; }
+.match-words { display: flex; flex-wrap: wrap; gap: 4px; }
+.kw { font: inherit; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: default; }
+.kw.present { border-color: rgb(22 163 74 / 0.5); color: #15803d; }
+.kw.gained { border-color: #16a34a; background: rgb(22 163 74 / 0.15); color: #15803d; font-weight: 600; }
+.kw.reachable { border-color: rgb(22 163 74 / 0.5); background: repeating-linear-gradient(45deg, rgb(22 163 74 / 0.12) 0 3px, transparent 3px 6px); }
+.kw.missing { border-color: rgb(220 38 38 / 0.5); color: #b91c1c; cursor: pointer; }
+.kw.missing:hover { background: rgb(220 38 38 / 0.08); }
+
 /* Diff view */
 .diff-head { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .diff-head select { padding: 3px 6px; }
@@ -369,7 +405,9 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
   .chips::-webkit-scrollbar { display: none; }
   .chips button { flex: 0 0 auto; padding: 7px 12px; font-size: 13px; min-height: 34px; white-space: nowrap; }
 
-  .suggestions, .comments { margin: 6px 12px 0; max-height: 46vh; }
+  .suggestions, .comments, .tailor, .ats { margin: 6px 12px 0; max-height: 46vh; }
+  .tailor textarea { font-size: 16px; }
+  .ats-fix { min-height: 40px; }
   .sg { padding: 8px 10px; }
   .sg-diff { font-size: 11.5px; max-height: 120px; overflow-y: auto; }
   .sg-actions { flex-wrap: wrap; }

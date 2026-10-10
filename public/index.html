@@ -64,10 +64,32 @@
       <div class="messages" id="messages"></div>
       <div class="chips" id="chips">
         <button class="chip-primary" id="analyzeBtn" type="button">✦ Analyze my resume</button>
-        <button data-prompt="Make it fit on one page.">Fit to one page</button>
+        <button class="chip-primary" id="tailorBtn" type="button">🎯 Tailor to a job</button>
+        <button id="atsBtn" type="button" title="Check how an applicant tracking system reads this PDF">ATS check</button>
+        <button id="fitBtn" type="button">Fit to one page</button>
         <button data-prompt="Tighten the bullets: shorter, stronger verbs, results first. Keep all facts.">Tighten bullets</button>
-        <button data-fill="Tailor this resume to the following job description. Reorder and reword to match, but don't invent anything:&#10;&#10;">Tailor to a job…</button>
         <button data-prompt="Fix any bullets that end with a one or two word last line.">Fix orphan words</button>
+      </div>
+      <form class="tailor" id="tailor" hidden>
+        <div class="comments-head">
+          <span>Tailor to a job</span>
+          <button type="button" class="link" id="closeTailor">Close</button>
+        </div>
+        <p class="muted">Paste the job description, or a link to the posting. Claude scores the keyword match and proposes truthful rewording; nothing is invented.</p>
+        <textarea id="jobInput" rows="5" placeholder="Paste the full job description here, or a link like https://boards.greenhouse.io/…"></textarea>
+        <div class="suggestions-actions">
+          <span class="muted" id="tailorHint"></span>
+          <span class="spacer"></span>
+          <button type="submit" class="btn primary" id="tailorGo">Tailor</button>
+        </div>
+      </form>
+      <div class="ats" id="ats" hidden>
+        <div class="comments-head">
+          <span id="atsTitle">ATS check</span>
+          <button type="button" class="link" id="closeAts">Close</button>
+        </div>
+        <p class="muted" id="atsSummary"></p>
+        <ul id="atsList"></ul>
       </div>
       <div class="suggestions" id="suggestions" hidden>
         <div class="comments-head">
@@ -75,6 +97,11 @@
           <button type="button" class="link" id="closeSuggestions">Close</button>
         </div>
         <p class="muted" id="suggestionsSummary"></p>
+        <div class="match" id="match" hidden>
+          <div class="match-row"><span class="match-label">Keyword match</span><span class="match-pct" id="matchPct"></span></div>
+          <div class="match-bar"><div class="match-fill" id="matchFill"></div><div class="match-ghost" id="matchGhost"></div></div>
+          <div class="match-words" id="matchWords"></div>
+        </div>
         <div id="suggestionList"></div>
         <div class="suggestions-actions">
           <button type="button" class="link" id="acceptAll">Accept all</button>

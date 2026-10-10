@@ -50,15 +50,28 @@ Needs Node 22+. Without an API key it shells out to [Claude Code](https://claude
    orphan words, consistency, length). Each is a find/replace you can accept, edit, or skip; accepted ones
    are applied in one go as a new version. Claude is told never to invent numbers or claims, and any
    suggestion whose text doesn't match the document exactly is dropped before you see it.
-4. **Tweak** with prompts. Claude returns small find/replace edits (fast) or a full rewrite for big changes.
+4. **Tailor to a job**: paste a job description or a link to the posting (schema.org JobPosting data is
+   used when the page has it). Claude extracts the posting's 10 to 25 key terms and proposes truthful
+   rewording and reordering in the same accept/edit/skip form. A keyword match meter scores the resume
+   before, live as you accept suggestions, and after; missing terms are listed, and clicking one drafts a
+   prompt to add it only if it's true. The applied version is labeled with the company and role.
+5. **ATS check** (no Claude, free): reads the compiled PDF the way a parser does (`pdftotext` in reading
+   order, `pdffonts`, `pdfimages`) and reports text extraction, word coverage, encoding, embedded fonts,
+   images, name first, contact details, standard section headings, dates, reading order, and whether every
+   role names its employer. A second title under one employer (`\resumeSubSubheading`) is the common
+   failure: parsers see a title and dates with no company. One click rewrites those as full headings that
+   repeat the employer. The chip in the chat shows the score for the version on screen.
+6. **Fit to one page**: measures how many words spill past page one and runs up to three increasingly firm
+   Claude passes (tighten wording, then cut weak bullets, then compress old roles) until it fits.
+7. **Tweak** with prompts. Claude returns small find/replace edits (fast) or a full rewrite for big changes.
    The original resume text is sent along so you can ask to pull content back in.
    **Highlight text on the preview** to attach a comment to it. Comments queue up as numbered highlights
    and are added to your next prompt.
-5. **Edit LaTeX by hand** in the code editor (Split or LaTeX view): syntax highlighting, line numbers,
+8. **Edit LaTeX by hand** in the code editor (Split or LaTeX view): syntax highlighting, line numbers,
    search (⌘F), and ⌘S to recompile. Compile errors are marked on the offending line.
    **Double-click** a word on the PDF to jump to its LaTeX line, or a line in the editor to flash its spot on
    the PDF. This uses the SyncTeX map tectonic writes on every compile (`v<N>.synctex.gz`).
-6. **Versions and Changes**: every change is saved. Click any version to go back to it, and the Changes tab
+9. **Versions and Changes**: every change is saved. Click any version to go back to it, and the Changes tab
    shows a word-level diff between any two versions. Download the PDF or `.tex`.
 
 ## Accounts and storage
@@ -92,6 +105,8 @@ Upgrading from the pre-database layout: create your account in the app, then
 - `server.js`: Express routes. Long operations stream NDJSON progress events.
 - `lib/claude.js`: prompts and Claude calls (system prompt + template are prompt-cached).
 - `lib/latex.js`: tectonic compile + page count.
+- `lib/ats.js`: ATS parse checks, the repeat-employer fix, and job posting fetching (public hosts only).
+- `public/keywords.js`: keyword matching shared by the server (scores) and the browser (live meter).
 - `lib/store.js`: on-disk storage.
 - `public/`: the single-page UI. `public/syncmap.js` maps SyncTeX records to source lines and PDF rows.
 - `editor/entry.js`: the CodeMirror setup, bundled to `public/vendor/editor.js`.
