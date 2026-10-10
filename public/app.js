@@ -49,10 +49,37 @@ let timerHandle = null;
 
 // ---------- Helpers ----------
 
+// Toasts: start/finish confirmations that are visible from any panel. A "working" toast
+// stays until replaced or dismissed; others fade after a few seconds.
+let workingToast = null;
+function toast(text, kind = "done", ms = 3500) {
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  const ico = kind === "working" ? `<span class="t-spin"></span>` : `<span class="t-ico">${kind === "error" ? "⚠️" : "✅"}</span>`;
+  el.innerHTML = `${ico}<span></span>`;
+  el.lastChild.textContent = text;
+  $("toasts").append(el);
+  const remove = () => {
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 300);
+  };
+  if (kind === "working") {
+    workingToast?.remove();
+    workingToast = el;
+  } else {
+    setTimeout(remove, ms);
+    if (navigator.vibrate) navigator.vibrate(kind === "error" ? [40, 60, 40] : 25);
+  }
+  return remove;
+}
+function clearWorkingToast() {
+  workingToast?.remove();
+  workingToast = null;
+}
+
 // Every long action shows: the progress bar, a live bubble in the chat, the overlay on
 // the document, and a spinner on the button that started it (btn).
 let busyBtn = null;
-let pendingBubble = null;
 function setBusy(on, text = "Working…", btn = null) {
   busy = on;
   $("busy").hidden = !on;
@@ -65,28 +92,36 @@ function setBusy(on, text = "Working…", btn = null) {
   busyBtn?.classList.remove("btn-busy");
   busyBtn = on ? btn : null;
   busyBtn?.classList.add("btn-busy");
+  if (on) toast(text, "working");
+  else clearWorkingToast();
+  $("suggestions").classList.toggle("working", on && btn === $("applyBtn"));
+  if (on && btn === $("applyBtn")) $("suggestions").dataset.working = text;
   clearInterval(timerHandle);
-  pendingBubble?.remove();
-  pendingBubble = null;
+  $("chatStatus").hidden = !on;
+  clearInterval(glyphTimer);
   if (on) {
-    pendingBubble = document.createElement("div");
-    pendingBubble.className = "msg assistant pending";
-    pendingBubble.innerHTML = `<span class="dots"><i></i><i></i><i></i></span><span class="ptext"></span><span class="elapsed"></span>`;
-    $("messages").append(pendingBubble);
     $("messages").scrollTop = $("messages").scrollHeight;
     const start = Date.now();
     $("busyTimer").textContent = "";
+    $("chatStatus").querySelector(".cc-time").textContent = "(0s)";
     timerHandle = setInterval(() => {
-      const t = `${Math.round((Date.now() - start) / 1000)}s`;
-      $("busyTimer").textContent = t;
-      if (pendingBubble) pendingBubble.querySelector(".elapsed").textContent = t;
+      const secs = Math.round((Date.now() - start) / 1000);
+      $("busyTimer").textContent = `${secs}s`;
+      $("chatStatus").querySelector(".cc-time").textContent = `(${secs}s)`;
     }, 1000);
+    // The glyph cycles like Claude Code's spinner.
+    let g = 0;
+    glyphTimer = setInterval(() => {
+      $("chatStatus").querySelector(".cc-glyph").textContent = GLYPHS[g++ % GLYPHS.length];
+    }, 140);
     startPhrases();
   } else {
     clearInterval(phraseTimer);
   }
   setBusyText(text);
 }
+const GLYPHS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
+let glyphTimer = null;
 
 const PHRASES = ["Thinking…", "Cooking…", "Reading between the lines…", "Weighing every bullet…", "Hunting for orphan words…", "Polishing…", "Counting the metrics…", "Tightening the wording…", "Typesetting…", "Almost there…"];
 let lastStatusAt = 0;
@@ -94,7 +129,9 @@ let phraseTimer = null;
 function setBusyText(text, fromServer = true) {
   if (fromServer) lastStatusAt = Date.now();
   $("busyText").textContent = text;
-  if (pendingBubble) pendingBubble.querySelector(".ptext").textContent = text;
+  $("chatStatus").querySelector(".cc-text").textContent = text;
+  if (workingToast) workingToast.lastChild.textContent = text;
+  if ($("suggestions").classList.contains("working")) $("suggestions").dataset.working = text;
 }
 // When no real status has arrived for a while, cycle through friendlier phrases.
 function startPhrases() {
@@ -409,9 +446,12 @@ async function convert(file) {
       if (evt.type === "done") {
         state = evt.state;
         render(evt.tex);
+        const pages = evt.state.versions.at(-1)?.pages || 1;
+        toast(`Converted. ${pages} page${pages > 1 ? "s" : ""}.`);
         if (isMobile()) setPanel("pdf");
       }
       if (evt.type === "error") {
+        toast(evt.message, "error", 6000);
         addMessage("error", `${evt.message}\nPick “+ New resume” above to try again.`, null, true, evt.log);
         state.id = null;
         history.replaceState(null, "", location.pathname);
@@ -439,6 +479,7 @@ async function applyPrompt(typed, sourceBtn = null) {
   promptSourceBtn = sourceBtn;
   if (busy || !state?.id || !state.current) return;
   if (dirty) {
+    toast("Recompile your LaTeX edits first (⌘S) so Claude works from the latest version.", "error", 5000);
     addMessage("error", "You have unsaved LaTeX edits. Recompile them (⌘S) first so Claude works from your latest version.");
     return;
   }
@@ -459,9 +500,11 @@ async function applyPrompt(typed, sourceBtn = null) {
       if (evt.type === "done") {
         state = evt.state;
         render(evt.tex);
+        toast(`Done. Now on version ${evt.state.current}.`);
         if (isMobile()) setPanel("pdf");
       }
       if (evt.type === "error") {
+        toast(evt.message, "error", 6000);
         addMessage("error", evt.message, null, true, evt.log);
         setComments(sentComments); // keep them so the user can retry
       }
@@ -492,6 +535,8 @@ async function recompile() {
     } else {
       state = data.state;
       render(data.tex);
+      toast(`Recompiled. Now on version ${data.state.current}.`);
+      if (isMobile()) setPanel("pdf");
     }
   } finally {
     setBusy(false);
@@ -909,6 +954,7 @@ function suggestionDiffHtml(find, replacement) {
 async function analyze() {
   if (busy || !state?.id || !state.current) return;
   if (dirty) {
+    toast("Recompile your LaTeX edits first (⌘S) so the review covers the latest version.", "error", 5000);
     addMessage("error", "You have unsaved LaTeX edits. Recompile them (⌘S) first so the review covers your latest version.");
     return;
   }
@@ -930,8 +976,13 @@ async function analyze() {
         $("promptInput").value = "";
         renderReview();
         locateSuggestions();
+        toast(`${evt.suggestions.length} suggestions ready. Accept, edit, or skip each one.`, "done", 5000);
+        if (isMobile()) setPanel("chat");
       }
-      if (evt.type === "error") addMessage("error", evt.message);
+      if (evt.type === "error") {
+        toast(evt.message, "error", 6000);
+        addMessage("error", evt.message);
+      }
     }, `job:${state.id}`);
   } catch (err) {
     addMessage("error", explainError(err));
@@ -1066,10 +1117,13 @@ $("applyBtn").onclick = async () => {
         state = evt.state;
         render(evt.tex);
         if (evt.skipped) addMessage("error", `${evt.skipped} suggestion${evt.skipped > 1 ? "s" : ""} no longer matched and were skipped.`);
+        const n = accepted.length - (evt.skipped || 0);
+        toast(`Applied ${n} suggestion${n === 1 ? "" : "s"}. Now on version ${evt.state.current}. Showing the changes.`, "done", 5000);
         if (isMobile()) setPanel("diff");
         else setView("diff");
       }
       if (evt.type === "error") {
+        toast(evt.message, "error", 6000);
         addMessage("error", evt.message, null, true, evt.log);
         review = snapshot;
         renderReview();
@@ -1234,6 +1288,7 @@ $("promptForm").onsubmit = (e) => {
   e.preventDefault();
   const p = $("promptInput").value.trim();
   if (p || comments.length) applyPrompt(p);
+  else toast("Type a change first, or highlight text on the PDF to comment on it.", "error", 4000);
 };
 $("promptInput").onkeydown = (e) => {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("promptForm").requestSubmit();

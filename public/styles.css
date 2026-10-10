@@ -230,9 +230,46 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
 
 /* Global activity indicators: a bar under the top bar, an overlay on the document pane,
    a live bubble in the chat, and a spinner on the button that was pressed. */
+/* Toasts: the one signal that shows on every screen and panel. */
+.toasts { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; flex-direction: column; gap: 8px; width: min(92vw, 420px); pointer-events: none; }
+.toast {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px;
+  background: var(--text); color: var(--bg); font-weight: 600; font-size: 14px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.3); animation: toast-in 0.25s ease-out;
+}
+.toast.working { background: var(--accent); color: var(--accent-text); }
+.toast.done { background: #15803d; color: #fff; }
+.toast.error { background: #b91c1c; color: #fff; }
+.toast .t-ico { font-size: 18px; line-height: 1; }
+.toast .t-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 0.4); border-top-color: #fff; animation: spin 0.8s linear infinite; flex: none; }
+.toast.out { animation: toast-out 0.3s ease-in forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-10px); } }
+
+.suggestions.working { position: relative; }
+.suggestions.working::after {
+  content: attr(data-working); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent); backdrop-filter: blur(2px); border-radius: 10px;
+  font-weight: 600; color: var(--text);
+}
+
 .progress { position: relative; height: 3px; background: color-mix(in srgb, var(--accent) 25%, transparent); overflow: hidden; }
 .progress-bar { position: absolute; top: 0; bottom: 0; width: 35%; background: var(--accent); border-radius: 2px; animation: slide 1.2s ease-in-out infinite; }
 @keyframes slide { 0% { left: -35%; } 100% { left: 100%; } }
+
+/* Claude Code-style status line: animated glyph, shimmering verb, elapsed time. */
+.chat-status { display: flex; align-items: baseline; gap: 8px; padding: 6px 16px 2px; font-size: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.chat-status[hidden] { display: none; }
+.cc-glyph { color: var(--accent); font-size: 16px; width: 1.2em; display: inline-block; text-align: center; }
+.cc-text {
+  color: var(--accent); font-weight: 600;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 35%, color-mix(in srgb, var(--accent) 35%, var(--surface)) 50%, var(--accent) 65%, var(--accent) 100%);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 2s linear infinite;
+}
+.cc-time { color: var(--muted); font-size: 12px; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .cc-text { animation: none; color: var(--accent); background: none; } }
 
 .msg.pending { display: flex; align-items: center; gap: 10px; color: var(--muted); }
 .msg.pending .dots { display: inline-flex; gap: 3px; }
@@ -320,6 +357,7 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
   .diff-head { flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
   .diff-head select { max-width: 42vw; }
   .diff-body { padding: 10px 12px; font-size: 12px; }
+  .editor-view.panel-chat ~ .busy { display: none; } /* the chat status line covers it */
   .busy { left: 0; bottom: var(--nav-h); top: auto; height: 96px; flex-direction: row; justify-content: flex-start; padding: 0 16px; gap: 12px; border-top: 1px solid var(--border); background: var(--surface); backdrop-filter: none; }
   .busy .spinner { width: 24px; height: 24px; }
   .busy #busyText { flex: 1; font-size: 14px; }

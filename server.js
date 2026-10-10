@@ -36,9 +36,12 @@ app.get("/api/auth/google", googleStart);
 app.get("/api/auth/google/callback", googleCallback);
 app.use(requireAuth);
 app.post("/api/logout", logout);
-app.use(express.static("public"));
-app.use("/vendor/pdfjs", express.static("node_modules/pdfjs-dist/build"));
-app.use("/vendor/pdfjs-web", express.static("node_modules/pdfjs-dist/web"));
+// no-cache (not no-store): browsers keep a copy but must revalidate with the ETag, so a
+// deploy reaches every phone on its next load instead of after a heuristic cache window.
+const revalidate = { etag: true, maxAge: 0, setHeaders: (res) => res.setHeader("Cache-Control", "no-cache") };
+app.use(express.static("public", revalidate));
+app.use("/vendor/pdfjs", express.static("node_modules/pdfjs-dist/build", revalidate));
+app.use("/vendor/pdfjs-web", express.static("node_modules/pdfjs-dist/web", revalidate));
 const upload = multer({ limits: { fileSize: 20 * 1024 * 1024 } });
 
 // Long-running calls stream newline-delimited JSON progress events, ending in "done" or "error".

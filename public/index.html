@@ -47,6 +47,9 @@
   <main id="editorView" class="editor-view panel-chat" hidden>
     <section class="side" id="sidePanel">
       <div class="messages" id="messages"></div>
+      <div class="chat-status" id="chatStatus" hidden>
+        <span class="cc-glyph">✻</span><span class="cc-text">Thinking…</span><span class="cc-time"></span>
+      </div>
       <div class="chips" id="chips">
         <button class="chip-primary" id="analyzeBtn" type="button">✦ Analyze my resume</button>
         <button data-prompt="Make it fit on one page.">Fit to one page</button>
@@ -125,6 +128,8 @@
       </form>
     </section>
   </main>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
 
   <div class="busy" id="busy" hidden>
     <div class="spinner"></div>
