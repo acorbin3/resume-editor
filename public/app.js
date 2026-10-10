@@ -1,8 +1,13 @@
-import * as pdfjsLib from "/vendor/pdfjs/pdf.min.mjs";
-import { createEditor } from "/vendor/editor.js";
-import { buildSyncMap, lineAtPoint, boxForLine } from "/syncmap.js";
+// Imports carry the same ?v= build id as this file so a deploy refreshes everything together.
+const V = new URL(import.meta.url).searchParams.get("v") || "";
+const q = V ? `?v=${V}` : "";
+const [pdfjsLib, { createEditor }, { buildSyncMap, lineAtPoint, boxForLine }] = await Promise.all([
+  import(`/vendor/pdfjs/pdf.min.mjs${q}`),
+  import(`/vendor/editor.js${q}`),
+  import(`/syncmap.js${q}`),
+]);
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = `/vendor/pdfjs/pdf.worker.min.mjs${q}`;
 
 const $ = (id) => document.getElementById(id);
 

@@ -1,4 +1,7 @@
 import express from "express";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import multer from "multer";
 import Anthropic from "@anthropic-ai/sdk";
 import { diffLines, diffWords } from "diff";
@@ -36,12 +39,42 @@ app.get("/api/auth/google", googleStart);
 app.get("/api/auth/google/callback", googleCallback);
 app.use(requireAuth);
 app.post("/api/logout", logout);
-// no-cache (not no-store): browsers keep a copy but must revalidate with the ETag, so a
-// deploy reaches every phone on its next load instead of after a heuristic cache window.
-const revalidate = { etag: true, maxAge: 0, setHeaders: (res) => res.setHeader("Cache-Control", "no-cache") };
-app.use(express.static("public", revalidate));
-app.use("/vendor/pdfjs", express.static("node_modules/pdfjs-dist/build", revalidate));
-app.use("/vendor/pdfjs-web", express.static("node_modules/pdfjs-dist/web", revalidate));
+// Cache strategy that survives CDN defaults (Cloudflare rewrites no-cache to a 4h browser TTL):
+// HTML is never cached, and it references scripts/styles with ?v=<build id>, so each deploy
+// gets fresh URLs. Versioned assets are cached for a year; unversioned requests revalidate.
+const BUILD_ID = buildId();
+function buildId() {
+  const h = createHash("sha1");
+  for (const f of ["public/app.js", "public/styles.css", "public/syncmap.js", "public/index.html", "public/login.html", "public/vendor/editor.js"]) {
+    try {
+      h.update(readFileSync(f));
+    } catch {}
+  }
+  return h.digest("hex").slice(0, 10);
+}
+function servePage(file) {
+  return (_req, res) => {
+    let html = readFileSync(path.join("public", file), "utf8");
+    html = html.replace(/(src|href)="(\/?(?:app\.js|styles\.css|syncmap\.js|vendor\/[^"]+))"/g, `$1="$2?v=${BUILD_ID}"`);
+    html = html.replace(/from "\/(vendor\/[^"]+|syncmap\.js)"/g, `from "/$1?v=${BUILD_ID}"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.type("html").send(html);
+  };
+}
+app.get(["/", "/index.html"], servePage("index.html"));
+app.get("/login.html", servePage("login.html"));
+const assetCache = {
+  etag: true,
+  maxAge: 0,
+  setHeaders: (res, filePath) => {
+    // Versioned requests (?v=) are immutable; anything else must revalidate.
+    const versioned = res.req.query?.v === BUILD_ID;
+    res.setHeader("Cache-Control", versioned ? "public, max-age=31536000, immutable" : "no-cache");
+  },
+};
+app.use(express.static("public", { ...assetCache, index: false }));
+app.use("/vendor/pdfjs", express.static("node_modules/pdfjs-dist/build", assetCache));
+app.use("/vendor/pdfjs-web", express.static("node_modules/pdfjs-dist/web", assetCache));
 const upload = multer({ limits: { fileSize: 20 * 1024 * 1024 } });
 
 // Long-running calls stream newline-delimited JSON progress events, ending in "done" or "error".
