@@ -382,18 +382,23 @@ function render(tex) {
   for (const m of state.messages) addMessage(m.role, m.text, m.version, false);
   msgs.scrollTop = msgs.scrollHeight;
 
-  const list = $("versionList");
-  list.innerHTML = "";
-  for (const x of [...state.versions].reverse()) {
-    const li = document.createElement("li");
-    li.className = x.n === v ? "current" : "";
-    const b = document.createElement("button");
-    b.textContent = `v${x.n} · ${x.label}`;
-    b.title = x.n === v ? x.label : `Restore v${x.n} as a new version`;
-    b.onclick = () => selectVersion(x.n);
-    li.append(b);
-    list.append(li);
+  for (const list of [$("versionList"), $("sheetVersions")]) {
+    list.innerHTML = "";
+    for (const x of [...state.versions].reverse()) {
+      const li = document.createElement("li");
+      li.className = x.n === v ? "current" : "";
+      const b = document.createElement("button");
+      b.textContent = `v${x.n} · ${x.label}`;
+      b.title = x.n === v ? x.label : `Restore v${x.n} as a new version`;
+      b.onclick = () => {
+        closeSheet();
+        selectVersion(x.n);
+      };
+      li.append(b);
+      list.append(li);
+    }
   }
+  $("menuBtn").hidden = !state.id;
 }
 
 function addMessage(role, text, version, scroll = true, log) {
@@ -491,6 +496,7 @@ function newResume() {
   $("resumePicker").value = "";
   $("downloads").hidden = true;
   $("renameBtn").hidden = true;
+  $("menuBtn").hidden = true;
   showView("upload");
 }
 
@@ -579,6 +585,7 @@ async function applyPrompt(typed, sourceBtn = null) {
   if (!prompt) return;
   addMessage("user", prompt);
   $("promptInput").value = "";
+  autoGrow();
   const sentComments = comments;
   setComments([]);
   setBusy(true, "Claude is editing…", promptSourceBtn || $("sendBtn"));
@@ -916,7 +923,9 @@ function setComments(list) {
     ol.append(li);
   });
   $("comments").hidden = !comments.length;
-  $("sendBtn").textContent = comments.length ? `Apply with ${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Apply";
+  $("sendBtn").querySelector(".full").textContent = comments.length ? `Apply with ${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Apply";
+  $("sendBtn").querySelector(".short").textContent = comments.length ? `↑${comments.length}` : "↑";
+  $("sendBtn").title = comments.length ? `Apply with ${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Apply";
   drawHighlights();
 }
 
@@ -1336,6 +1345,31 @@ document.addEventListener("selectionchange", () => {
     if (selection) openPopover(selection);
   }, 600);
 });
+
+// ---------- Mobile bottom sheet (actions + versions) ----------
+
+function openSheet() {
+  $("sheet").hidden = false;
+  $("sheetBackdrop").hidden = false;
+  $("sheetPdf").onclick = () => { closeSheet(); $("dlPdf").click(); };
+  $("sheetTex").onclick = () => { closeSheet(); $("dlTex").click(); };
+  $("sheetRename").onclick = () => { closeSheet(); $("renameBtn").click(); };
+  $("sheetLogout").onclick = () => { closeSheet(); $("logoutBtn").click(); };
+}
+function closeSheet() {
+  $("sheet").hidden = true;
+  $("sheetBackdrop").hidden = true;
+}
+$("menuBtn").onclick = openSheet;
+$("sheetBackdrop").onclick = closeSheet;
+
+// The composer grows with its content (messaging-app style) up to a few lines.
+function autoGrow() {
+  const ta = $("promptInput");
+  ta.style.height = "auto";
+  ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+}
+$("promptInput").addEventListener("input", autoGrow);
 
 // ---------- Analytics (PostHog, only when the server has a key) ----------
 

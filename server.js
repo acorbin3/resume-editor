@@ -34,7 +34,7 @@ app.get("/healthz", async (_req, res) => {
 });
 app.get("/api/build", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ id: BUILD_ID });
+  res.json({ id: currentBuildId() });
 });
 app.get("/api/auth", authInfo);
 app.post("/api/login", login);
@@ -46,7 +46,10 @@ app.post("/api/logout", logout);
 // Cache strategy that survives CDN defaults (Cloudflare rewrites no-cache to a 4h browser TTL):
 // HTML is never cached, and it references scripts/styles with ?v=<build id>, so each deploy
 // gets fresh URLs. Versioned assets are cached for a year; unversioned requests revalidate.
-const BUILD_ID = buildId();
+// Outside production the id is recomputed per request so edited files show up without a
+// restart; in production (Docker) it's fixed at startup.
+let BUILD_ID = buildId();
+const currentBuildId = () => (process.env.NODE_ENV === "production" ? BUILD_ID : (BUILD_ID = buildId()));
 function buildId() {
   const h = createHash("sha1");
   for (const f of ["public/app.js", "public/styles.css", "public/syncmap.js", "public/index.html", "public/login.html", "public/vendor/editor.js"]) {
@@ -59,8 +62,9 @@ function buildId() {
 function servePage(file) {
   return (_req, res) => {
     let html = readFileSync(path.join("public", file), "utf8");
-    html = html.replace(/(src|href)="(\/?(?:app\.js|styles\.css|syncmap\.js|vendor\/[^"]+))"/g, `$1="$2?v=${BUILD_ID}"`);
-    html = html.replace(/from "\/(vendor\/[^"]+|syncmap\.js)"/g, `from "/$1?v=${BUILD_ID}"`);
+    const id = currentBuildId();
+    html = html.replace(/(src|href)="(\/?(?:app\.js|styles\.css|syncmap\.js|vendor\/[^"]+))"/g, `$1="$2?v=${id}"`);
+    html = html.replace(/from "\/(vendor\/[^"]+|syncmap\.js)"/g, `from "/$1?v=${id}"`);
     res.setHeader("Cache-Control", "no-store");
     res.type("html").send(html);
   };
@@ -72,7 +76,7 @@ const assetCache = {
   maxAge: 0,
   setHeaders: (res, filePath) => {
     // Versioned requests (?v=) are immutable; anything else must revalidate.
-    const versioned = res.req.query?.v === BUILD_ID;
+    const versioned = res.req.query?.v === currentBuildId();
     res.setHeader("Cache-Control", versioned ? "public, max-age=31536000, immutable" : "no-cache");
   },
 };

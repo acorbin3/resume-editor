@@ -20,7 +20,22 @@
       <a id="dlTex" class="btn" href="#"><span class="full">Download .tex</span><span class="short">.tex</span></a>
     </div>
     <button class="btn" id="logoutBtn" hidden><span class="full">Sign out</span><span class="short">Out</span></button>
+    <button class="btn small menu-btn" id="menuBtn" aria-label="More" hidden>⋯</button>
   </header>
+
+  <!-- Mobile: actions and versions live in a bottom sheet -->
+  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheet-handle"></div>
+    <div class="sheet-actions">
+      <button class="btn primary" id="sheetPdf">Download PDF</button>
+      <button class="btn" id="sheetTex">Download .tex</button>
+      <button class="btn" id="sheetRename">Rename</button>
+      <button class="btn" id="sheetLogout">Sign out</button>
+    </div>
+    <div class="sheet-title">Versions</div>
+    <ol class="sheet-versions" id="sheetVersions"></ol>
+  </div>
 
   <div class="progress" id="progress" hidden><div class="progress-bar"></div></div>
   <div id="banner" class="banner" hidden></div>
@@ -76,8 +91,8 @@
         <ol id="commentList"></ol>
       </div>
       <form id="promptForm" class="prompt">
-        <textarea id="promptInput" rows="3" placeholder="Describe a change, or highlight text on the PDF to comment on it"></textarea>
-        <button class="btn primary" id="sendBtn" type="submit">Apply</button>
+        <textarea id="promptInput" rows="1" placeholder="Describe a change…"></textarea>
+        <button class="btn primary" id="sendBtn" type="submit" aria-label="Apply"><span class="full">Apply</span><span class="short">↑</span></button>
       </form>
       <details class="versions">
         <summary>Versions</summary>
