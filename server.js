@@ -184,6 +184,28 @@ app.get("/api/me", async (req, res) =>
   res.json({ id: req.user.id, email: req.user.email, analytics: analyticsEnabled ? { key: process.env.POSTHOG_KEY, host: posthogHost } : null, plan: await plans.status(req.user) })
 );
 
+// Account data removal. Both are permanent; the client confirms before calling.
+app.delete("/api/me/resumes", async (req, res) => {
+  try {
+    const deleted = await store.deleteAllResumes(req.user.id);
+    track(req.user.id, "resumes_deleted_all", { count: deleted });
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: errorMessage(err) });
+  }
+});
+app.delete("/api/me", async (req, res) => {
+  try {
+    if (req.body?.confirm !== req.user.email) return res.status(400).json({ error: "Type your email address to confirm." });
+    await plans.onDeleteUser(req.user);
+    await store.deleteUser(req.user.id);
+    track(req.user.id, "account_deleted");
+    logout(req, res);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: errorMessage(err) });
+  }
+});
+
 // One row per AI action, for plan limits and cost tracking. Token counts are only known
 // on the API backend; the CLI and bridge report time only.
 const metered = (req, kind, startedAt, resumeId) => store.recordUsage({ userId: req.user.id, resumeId, kind, backend: BACKEND, model: MODEL, ms: Date.now() - startedAt });

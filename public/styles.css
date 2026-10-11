@@ -40,6 +40,26 @@ body {
   flex-direction: column;
 }
 .muted { color: var(--muted); }
+
+/* Settings modal */
+.modal-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.45); z-index: 40; }
+.modal { position: fixed; z-index: 41; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px 18px; display: grid; gap: 12px; box-shadow: 0 20px 60px rgb(0 0 0 / 0.3); }
+.modal h3 { margin: 6px 0 0; font-size: 14px; }
+.modal p { margin: 0; font-size: 13px; }
+.settings-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+.settings-facts dt { color: var(--muted); }
+.settings-facts dd { margin: 0; }
+.settings-links { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; }
+.settings-links a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.danger { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: grid; gap: 10px; }
+.danger-row { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.danger-row > div { flex: 1; display: grid; gap: 2px; }
+.danger-row .muted { font-size: 12px; }
+.danger-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }
+.danger-confirm label { display: grid; gap: 4px; flex: 1 1 100%; }
+.danger-confirm input { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+.danger-btn { border-color: #b91c1c; color: #fff; background: #b91c1c; }
+.danger-btn:hover { background: #991b1b; }
 [hidden] { display: none !important; }
 
 .topbar {
@@ -365,7 +385,7 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
 
   /* One row: resume picker + a menu button; everything else is in the bottom sheet */
   .topbar { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; }
-  .brand, #renameBtn, .downloads, #logoutBtn { display: none !important; }
+  .brand, #renameBtn, .downloads, #logoutBtn, #settingsBtn { display: none !important; }
   select { flex: 1 1 auto; min-width: 0; max-width: none; min-height: 40px; }
   .menu-btn { display: inline-flex; flex: 0 0 auto; width: 40px; height: 40px; padding: 0; font-size: 20px; line-height: 1; }
 

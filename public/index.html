@@ -19,6 +19,7 @@
       <a id="dlPdf" class="btn primary" href="#"><span class="full">Download PDF</span><span class="short">PDF</span></a>
       <a id="dlTex" class="btn" href="#"><span class="full">Download .tex</span><span class="short">.tex</span></a>
     </div>
+    <button class="btn" id="settingsBtn" title="Settings" hidden>Settings</button>
     <button class="btn" id="logoutBtn" hidden><span class="full">Sign out</span><span class="short">Out</span></button>
     <button class="btn small menu-btn" id="menuBtn" aria-label="More" hidden>⋯</button>
   </header>
@@ -31,6 +32,7 @@
       <button class="btn primary" id="sheetPdf">Download PDF</button>
       <button class="btn" id="sheetTex">Download .tex</button>
       <button class="btn" id="sheetRename">Rename</button>
+      <button class="btn" id="sheetSettings">Settings</button>
       <a class="btn" id="sheetAbout" href="/welcome">What is this?</a>
       <button class="btn" id="sheetLogout">Sign out</button>
     </div>
@@ -169,6 +171,47 @@
       </form>
     </section>
   </main>
+
+  <div class="modal-backdrop" id="settingsBackdrop" hidden></div>
+  <section class="modal settings" id="settings" role="dialog" aria-labelledby="settingsTitle" hidden>
+    <div class="comments-head">
+      <span id="settingsTitle">Settings</span>
+      <button type="button" class="link" id="closeSettings">Close</button>
+    </div>
+    <dl class="settings-facts">
+      <dt>Signed in as</dt><dd id="settingsEmail"></dd>
+      <dt>Plan</dt><dd id="settingsPlan">Free, unlimited</dd>
+    </dl>
+    <div class="settings-links">
+      <a id="settingsPlanLink" href="#" hidden></a>
+      <a href="/welcome">What is this?</a>
+      <a href="https://github.com/acorbin3/resume-editor" target="_blank" rel="noopener">Source code</a>
+    </div>
+    <h3>Your data</h3>
+    <p class="muted">Your resumes live only on this server. Deleting is immediate and permanent: every version, chat, uploaded PDF, and review goes with them.</p>
+    <div class="danger" id="deleteResumes">
+      <div class="danger-row">
+        <div><b>Delete all resumes</b><span class="muted">Keeps your account and plan so you can start over.</span></div>
+        <button type="button" class="btn" data-step="ask">Delete…</button>
+      </div>
+      <div class="danger-confirm" hidden>
+        <span>Delete every resume? This cannot be undone.</span>
+        <button type="button" class="btn danger-btn" data-step="go">Yes, delete all</button>
+        <button type="button" class="link" data-step="cancel">Cancel</button>
+      </div>
+    </div>
+    <div class="danger" id="deleteAccount">
+      <div class="danger-row">
+        <div><b>Delete my account</b><span class="muted">Removes your resumes, login, and billing details. Any subscription is cancelled.</span></div>
+        <button type="button" class="btn" data-step="ask">Delete…</button>
+      </div>
+      <form class="danger-confirm" hidden>
+        <label>Type your email address to confirm <input type="email" id="deleteAccountEmail" autocomplete="off" placeholder="you@example.com" /></label>
+        <button type="submit" class="btn danger-btn" data-step="go">Delete my account</button>
+        <button type="button" class="link" data-step="cancel">Cancel</button>
+      </form>
+    </div>
+  </section>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 

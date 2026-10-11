@@ -1599,6 +1599,84 @@ document.addEventListener("selectionchange", () => {
   }, 600);
 });
 
+// ---------- Settings (account, data deletion) ----------
+
+let me = null; // { id, email, plan } from /api/me
+function openSettings() {
+  $("settingsEmail").textContent = me?.email || "";
+  const plan = me?.plan;
+  const link = $("settingsPlanLink");
+  if (plan) {
+    const bits = [plan.label || plan.plan];
+    if (plan.limit != null) bits.push(`${plan.remaining} of ${plan.limit} AI actions left this month`);
+    else if (plan.expiresAt) bits.push(`until ${new Date(plan.expiresAt).toLocaleDateString()}`);
+    $("settingsPlan").textContent = bits.join(" · ");
+    if (plan.upgradeUrl) { link.hidden = false; link.textContent = "Upgrade"; link.href = plan.upgradeUrl; }
+    else if (plan.portalUrl) { link.hidden = false; link.textContent = "Manage billing"; link.href = plan.portalUrl; }
+    else link.hidden = true;
+  } else {
+    $("settingsPlan").textContent = "Free, unlimited";
+    link.hidden = true;
+  }
+  for (const box of document.querySelectorAll(".danger")) resetDanger(box);
+  $("settings").hidden = false;
+  $("settingsBackdrop").hidden = false;
+}
+function closeSettings() {
+  $("settings").hidden = true;
+  $("settingsBackdrop").hidden = true;
+}
+function resetDanger(box) {
+  box.querySelector(".danger-row").hidden = false;
+  box.querySelector(".danger-confirm").hidden = true;
+  const input = box.querySelector("input");
+  if (input) input.value = "";
+}
+for (const box of document.querySelectorAll(".danger")) {
+  box.querySelector('[data-step="ask"]').onclick = () => {
+    box.querySelector(".danger-row").hidden = true;
+    box.querySelector(".danger-confirm").hidden = false;
+    box.querySelector("input")?.focus();
+  };
+  box.querySelector('[data-step="cancel"]').onclick = () => resetDanger(box);
+}
+$("deleteResumes").querySelector('[data-step="go"]').onclick = async (e) => {
+  e.target.disabled = true;
+  try {
+    const res = await fetch("/api/me/resumes", { method: "DELETE" });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "Delete failed");
+    closeSettings();
+    state = null;
+    await refreshPicker();
+    newResume();
+    toast(`Deleted ${body.deleted} resume${body.deleted === 1 ? "" : "s"}.`);
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    e.target.disabled = false;
+  }
+};
+$("deleteAccount").querySelector("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('[data-step="go"]');
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/me", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: $("deleteAccountEmail").value.trim() }) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "Delete failed");
+    dirty = false;
+    location.replace("/welcome");
+  } catch (err) {
+    toast(err.message, "error");
+    btn.disabled = false;
+  }
+};
+$("settingsBtn").onclick = openSettings;
+$("closeSettings").onclick = closeSettings;
+$("settingsBackdrop").onclick = closeSettings;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settings").hidden) closeSettings(); });
+
 // ---------- Mobile bottom sheet (actions + versions) ----------
 
 // The menu shows whenever there is something to put in it: resume actions, or Sign out.
@@ -1616,6 +1694,7 @@ function openSheet() {
   $("sheetTex").onclick = () => { closeSheet(); $("dlTex").click(); };
   $("sheetRename").onclick = () => { closeSheet(); $("renameBtn").click(); };
   $("sheetLogout").onclick = () => { closeSheet(); $("logoutBtn").click(); };
+  $("sheetSettings").onclick = () => { closeSheet(); openSettings(); };
 }
 function closeSheet() {
   $("sheet").hidden = true;
@@ -1690,7 +1769,7 @@ function showPlan(plan) {
 }
 async function refreshPlan() {
   try {
-    const me = await fetch("/api/me").then((r) => r.json());
+    me = await fetch("/api/me").then((r) => r.json());
     showPlan(me.plan);
   } catch {}
 }
@@ -1805,8 +1884,10 @@ window.addEventListener("beforeunload", (e) => {
   if (health?.auth) {
     authed = true;
     $("logoutBtn").hidden = false;
+    $("settingsBtn").hidden = false;
     syncMenu();
-    fetch("/api/me").then((r) => r.json()).then((me) => {
+    fetch("/api/me").then((r) => r.json()).then((info) => {
+      me = info;
       $("logoutBtn").textContent = `Sign out (${me.email})`;
       if (me.analytics) initAnalytics(me.analytics, me.id);
       showPlan(me.plan);
