@@ -58,8 +58,8 @@ body {
 .danger-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }
 .danger-confirm label { display: grid; gap: 4px; flex: 1 1 100%; }
 .danger-confirm input { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
-.danger-btn { border-color: #b91c1c; color: #fff; background: #b91c1c; }
-.danger-btn:hover { background: #991b1b; }
+.btn.danger-btn { border-color: #b91c1c; color: #fff; background: #b91c1c; }
+.btn.danger-btn:hover { background: #991b1b; }
 [hidden] { display: none !important; }
 
 .topbar {
