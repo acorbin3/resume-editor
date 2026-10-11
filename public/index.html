@@ -11,7 +11,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">Resume Editor</div>
+    <a class="brand" href="/welcome" title="What this is">Resume Editor</a>
     <select id="resumePicker" aria-label="Open a resume"></select>
     <button class="btn small" id="renameBtn" title="Rename this resume" hidden>Rename</button>
     <div class="spacer"></div>
@@ -31,6 +31,7 @@
       <button class="btn primary" id="sheetPdf">Download PDF</button>
       <button class="btn" id="sheetTex">Download .tex</button>
       <button class="btn" id="sheetRename">Rename</button>
+      <a class="btn" id="sheetAbout" href="/welcome">What is this?</a>
       <button class="btn" id="sheetLogout">Sign out</button>
     </div>
     <div class="sheet-title" id="sheetVersionsTitle">Versions</div>
