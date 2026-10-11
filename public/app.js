@@ -1604,7 +1604,7 @@ document.addEventListener("selectionchange", () => {
 // The menu shows whenever there is something to put in it: resume actions, or Sign out.
 let authed = false;
 function syncMenu() {
-  $("menuBtn").hidden = !(state.id || authed);
+  $("menuBtn").hidden = !(state?.id || authed);
 }
 function openSheet() {
   const open = Boolean(state.id);
