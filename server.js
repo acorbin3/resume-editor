@@ -9,6 +9,7 @@ import { diffLines, diffWords } from "diff";
 import { compileTex, checkTools, pdfToText, parseSynctex } from "./lib/latex.js";
 import { BACKEND, MODEL, checkClaudeCli, textIsUsable, convertPdf, editTex, analyzeTex, tailorTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
 import { atsCheck, repeatEmployers, fetchJobPosting, pageWordCounts } from "./lib/ats.js";
+import { screenPrompt } from "./lib/texguard.js";
 import { scoreKeywords } from "./public/keywords.js";
 import * as store from "./lib/store.js";
 import { signupOpen, requireAuth, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
@@ -225,6 +226,8 @@ app.post("/api/resumes", upload.single("pdf"), gate("convert"), async (req, res)
   const job = createJob(req.user.id, null, "convert");
   const send = ndjson(res, job);
   const instructions = (req.body.instructions || "").trim();
+  const screened = screenPrompt(instructions, 2000);
+  if (screened) return res.status(400).json({ error: screened });
   const fitOnePage = req.body.onePage !== "false";
   let meta;
   try {
@@ -257,6 +260,8 @@ app.post("/api/resumes/:id/edit", gate("edit"), async (req, res) => {
   const startedAt = Date.now();
   const prompt = (req.body.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Enter a change to make." });
+  const screened = screenPrompt(prompt, 6000);
+  if (screened) return res.status(400).json({ error: screened });
   const meta = lookup(req, res);
   if (!meta) return;
   const send = ndjson(res, createJob(req.user.id, meta.id, "edit"));
@@ -283,6 +288,8 @@ app.post("/api/resumes/:id/edit", gate("edit"), async (req, res) => {
 // Review the current version and return suggestions for the user to accept or skip.
 app.post("/api/resumes/:id/analyze", gate("analyze"), async (req, res) => {
   const startedAt = Date.now();
+  const screened = screenPrompt((req.body.focus || "").trim(), 2000);
+  if (screened) return res.status(400).json({ error: screened });
   const meta = lookup(req, res);
   if (!meta) return;
   const send = ndjson(res, createJob(req.user.id, meta.id, "analyze"));
@@ -360,6 +367,7 @@ app.post("/api/resumes/:id/tailor", gate("tailor"), async (req, res) => {
   const pasted = String(req.body.job || "").trim();
   const url = String(req.body.url || "").trim();
   if (!pasted && !url) return res.status(400).json({ error: "Paste the job description or a link to it." });
+  if (pasted.length > 20_000) return res.status(400).json({ error: "That posting is very long; paste just the description and requirements." });
   const meta = lookup(req, res);
   if (!meta) return;
   const send = ndjson(res, createJob(req.user.id, meta.id, "tailor"));
