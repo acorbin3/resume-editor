@@ -5,23 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1f1f1d" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-  <title>Resume Editor: a resume that survives the software and reads well to people</title>
-  <meta name="description" content="Rebuild your resume in a clean, recruiter-trusted template, check how applicant tracking systems parse it, and tailor it to each job in minutes. Nothing invented; every change is yours to approve." />
+  <title>Resume Editor</title>
+  <meta name="description" content="Upload your resume PDF, get it back in a clean one-page format, check how applicant tracking systems read it, and tailor it to each job. Built by an engineering manager." />
   <link rel="stylesheet" href="styles.css" />
   <style>
     .land { max-width: 980px; margin: 0 auto; padding: 0 20px 64px; }
     .land-nav { display: flex; align-items: center; gap: 12px; padding: 16px 0; }
     .land-nav .brand { font-weight: 700; font-size: 17px; }
     .land-nav .spacer { flex: 1; }
-    .hero { padding: 40px 0 24px; display: grid; gap: 18px; }
-    .hero h1 { margin: 0; font-size: clamp(30px, 5vw, 46px); line-height: 1.1; letter-spacing: -0.01em; max-width: 760px; }
-    .hero p.lead { margin: 0; font-size: 18px; line-height: 1.5; color: var(--muted); max-width: 640px; }
+    .hero { padding: 28px 0 16px; display: grid; gap: 16px; }
+    .hero h1 { margin: 0; font-size: clamp(28px, 4.5vw, 40px); line-height: 1.1; letter-spacing: -0.01em; max-width: 760px; }
+    .hero p.lead { margin: 0; font-size: 17px; line-height: 1.5; color: var(--muted); max-width: 640px; }
     .cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     .cta .btn.big { font-size: 16px; padding: 12px 20px; }
     .cta .fine { color: var(--muted); font-size: 13px; width: 100%; }
     .shot { margin: 8px 0 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: 0 10px 40px rgb(0 0 0 / 0.12); }
     .shot img { display: block; width: 100%; height: auto; }
-    section.block { padding: 40px 0 8px; }
+    section.block { padding: 32px 0 4px; }
     section.block h2 { margin: 0 0 6px; font-size: 24px; letter-spacing: -0.01em; }
     section.block p.sub { margin: 0 0 20px; color: var(--muted); font-size: 16px; max-width: 640px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
@@ -76,52 +76,48 @@
     </nav>
 
     <section class="hero">
-      <h1>Your resume is read by software before a person ever sees it. Make sure it survives.</h1>
-      <p class="lead">Resume Editor rebuilds your resume in the clean, one-page template recruiters and engineers trust, checks how applicant tracking systems actually parse the PDF, and tailors it to each job in minutes. Nothing is invented. Every change is a suggestion you approve.</p>
+      <h1>Get your resume past the software and in front of a person.</h1>
+      <p class="lead">Upload the PDF you have. You get it back in the plain one-page format recruiters actually read, with a check on how applicant tracking systems parse it and a way to tailor it to each job in a few minutes. You approve every change.</p>
       <div class="cta">
         <a class="btn primary big" id="ctaTop" href="/login.html?mode=signup">Upload your resume</a>
-        <a class="btn big" href="#how">See how it works</a>
-        <span class="fine" id="ctaFine">Free to start. Takes about two minutes. PDF in, better PDF out.</span>
+        <a class="btn big" href="#how">How it works</a>
+        <span class="fine" id="ctaFine">Free to start. About two minutes.</span>
       </div>
       <figure class="shot"><img src="/screenshots/split-view.jpg" alt="The editor: rebuilt resume on the left with suggestions, the PDF preview on the right" width="1600" height="1000" loading="eager" /></figure>
     </section>
 
     <section class="block" id="why">
-      <h2>Why this exists</h2>
-      <p class="sub">Three things quietly cost people interviews, and the usual resume tools make them worse.</p>
+      <h2>Why I built this</h2>
+      <p class="sub">I'm an engineering manager. I've read thousands of resumes and watched good people get filtered out for reasons that had nothing to do with their work.</p>
       <div class="cards">
-        <div class="card bad"><div class="n">1</div><h3>Most rejections happen before a human looks</h3><p>Applicant tracking systems turn your PDF into fields. Two-column layouts, icons, text boxes, skill bars, and a second title without the company on its own line get scrambled or dropped. The recruiter sees a mess, or nothing, and moves on.</p></div>
-        <div class="card bad"><div class="n">2</div><h3>Builders make generic resumes</h3><p>Colored sidebars and star ratings look the same to every recruiter and parse badly. Word templates drift every time the text reflows, so the one-page version you sent last month is now a page and a half.</p></div>
-        <div class="card bad"><div class="n">3</div><h3>Tailoring is what works, and nobody has time</h3><p>Rewording bullets to match the language of each posting is the single biggest lever on response rate. Done by hand it takes an hour per application, so it gets skipped.</p></div>
+        <div class="card bad"><div class="n">1</div><h3>The parser sees it first</h3><p>Two columns, icons, text boxes, or a second job title without the company next to it, and the system fills in the wrong fields or none. The recruiter sees a mess and moves on.</p></div>
+        <div class="card bad"><div class="n">2</div><h3>Builders all look the same</h3><p>Sidebars and skill bars parse badly, and Word templates drift until last month's one page is a page and a half.</p></div>
+        <div class="card bad"><div class="n">3</div><h3>Tailoring works, and nobody does it</h3><p>Matching the posting's wording where it's true is what gets replies. By hand it's an hour per application, so it gets skipped.</p></div>
       </div>
     </section>
 
     <section class="block" id="what">
       <h2>What you get</h2>
-      <p class="sub">The parts of a great application that are tedious to do well by hand.</p>
       <div class="cards">
-        <div class="card"><div class="n">✓</div><h3>A clean, typeset page</h3><p>Your content, rebuilt in the LaTeX template engineers and recruiters already know. Consistent spacing, real bullets, no drift. Download the PDF or the source.</p></div>
-        <div class="card"><div class="n">✓</div><h3>ATS check with fixes</h3><p>Eleven checks run on the real PDF: text extraction, reading order, contact details, headings, dates, fonts, and whether every role names its employer. Problems come with a one-click fix. Free and unlimited.</p></div>
-        <div class="card"><div class="n">✓</div><h3>Tailor to a job</h3><p>Paste a posting or a link. See a keyword match score, then accept, edit, or skip each suggested rewording. It only mirrors the posting where your experience truly supports it.</p></div>
-        <div class="card"><div class="n">✓</div><h3>Honest review</h3><p>Weak verbs, bullets with no result, orphan words, inconsistencies. Each suggestion is shown as a diff, highlighted on the PDF, and applied only when you say so.</p></div>
-        <div class="card"><div class="n">✓</div><h3>Fit to one page</h3><p>Measures the overflow and tightens wording before it cuts anything, keeping every employer, title, and date.</p></div>
-        <div class="card"><div class="n">✓</div><h3>Every version kept</h3><p>Each change is a new version with a word-level diff. Highlight any text on the PDF to comment on it, or edit the LaTeX yourself with the preview in sync.</p></div>
+        <div class="card"><div class="n">✓</div><h3>A clean one-page PDF</h3><p>Your content in the plain template engineers and recruiters already know. Download the PDF or the LaTeX.</p></div>
+        <div class="card"><div class="n">✓</div><h3>ATS check with fixes</h3><p>Runs on the actual PDF: text, reading order, contact info, headings, dates, and whether every role names its employer. Free, no limit.</p></div>
+        <div class="card"><div class="n">✓</div><h3>Tailor to a job</h3><p>Paste the posting or a link. See the keyword match, then accept, edit, or skip each rewording. It won't claim anything your resume doesn't back up.</p></div>
+        <div class="card"><div class="n">✓</div><h3>You stay in control</h3><p>Every change is a diff you approve. Every version is kept. Highlight text on the PDF to ask for a change, or edit the LaTeX yourself.</p></div>
       </div>
     </section>
 
     <section class="block" id="how">
       <h2>How it works</h2>
-      <p class="sub">No forms to fill in. Start from the resume you already have.</p>
       <div class="steps">
-        <div class="step"><div><b>Upload your current PDF</b><span>It is read and rebuilt in the template, keeping all of your content. Scanned PDFs work too.</span></div></div>
-        <div class="step"><div><b>Run the ATS check and review the suggestions</b><span>Fix anything a parser would trip on, then accept or skip each wording suggestion. You stay in control of every word.</span></div></div>
-        <div class="step"><div><b>Tailor per job and download</b><span>Paste the posting, watch the match score climb as you accept changes, and download a PDF named for that application. Repeat for the next one in minutes.</span></div></div>
+        <div class="step"><div><b>Upload your current PDF.</b><span>Scanned ones work too. It comes back in the template with all your content.</span></div></div>
+        <div class="step"><div><b>Run the ATS check and go through the suggestions.</b><span>Accept or skip each one.</span></div></div>
+        <div class="step"><div><b>Paste a job posting, tailor, download.</b><span>Repeat for the next one.</span></div></div>
       </div>
     </section>
 
     <section class="block" id="pricing" hidden>
       <h2>Pricing</h2>
-      <p class="sub">Priced for a job search, not a subscription you forget to cancel. Human coaching is <a href="#coaching">below</a>.</p>
+      <p class="sub">Priced for a job search, not a subscription you forget about. Coaching is <a href="#coaching">below</a>.</p>
       <div class="plans">
         <div class="plan-card">
           <span class="tag">Free</span><h3>Import and check</h3><div class="price">$0</div>
@@ -142,15 +138,10 @@
     </section>
 
     <section class="block" id="coaching">
-      <h2>Work with a human</h2>
-      <p class="sub">Software gets your resume past the filter. For the parts that need judgment, book time with an engineering manager who has hired for and interviewed hundreds of engineering roles.</p>
-      <div class="cards">
-        <div class="card"><div class="n">1</div><h3>Resume review</h3><p>A line-by-line read of your resume against the roles you want, with the changes explained so you can keep making them yourself.</p></div>
-        <div class="card"><div class="n">2</div><h3>Interview prep</h3><p>Mock interviews for behavioral, system design, and hiring-manager rounds, with direct feedback on what a panel actually hears.</p></div>
-        <div class="card"><div class="n">3</div><h3>Career coaching</h3><p>Deciding between offers, going for a promotion, moving into management, or getting unstuck after a layoff.</p></div>
-      </div>
+      <h2>Talk to me</h2>
+      <p class="sub">For the parts software can't do: a line-by-line resume review, a mock interview with real feedback, or help deciding between offers, going for a promotion, or getting unstuck after a layoff. I've hired for and interviewed hundreds of engineering roles.</p>
       <form class="coach-form" id="coachForm">
-        <div class="coach-head"><b>Book a session</b><span class="muted">$100 per 30 minutes, video call. You'll get a reply within a day with times and a payment link. Reschedule up to 24 hours before.</span></div>
+        <div class="coach-head"><b>Book a session</b><span class="muted">$100 per 30 minutes over video. I'll reply within a day with times and a payment link.</span></div>
         <div class="coach-grid">
           <label class="field"><span>Your name</span><input type="text" name="name" required maxlength="120" autocomplete="name" /></label>
           <label class="field"><span>Email</span><input type="email" name="email" required maxlength="200" autocomplete="email" /></label>
@@ -186,10 +177,9 @@
     <section class="block" id="trust">
       <h2>What happens to your resume</h2>
       <div class="trust">
-        <div>Your resume is sent to Anthropic's Claude API to do the rebuilding and editing, and nowhere else. Under Anthropic's commercial terms, API data is not used to train models.</div>
-        <div>Only you can see your resumes. Delete any of them whenever you like.</div>
-        <div>Claude is told to never invent employers, dates, numbers, or skills. If a posting asks for something you don't have, it says so instead of making it up.</div>
-        <div>The editor itself is open source, so you can read exactly what it does.</div>
+        <div>It goes to Anthropic's Claude API to do the rewriting, and nowhere else. Anthropic doesn't train on API data.</div>
+        <div>Only you can see your resumes. Delete any of them, or your whole account, from Settings.</div>
+        <div>The editor is open source, so you can read exactly what it does.</div>
       </div>
     </section>
 

@@ -47,7 +47,7 @@
   <main id="uploadView" class="upload-view">
     <form id="uploadForm" class="upload-card">
       <h1>Start from the resume you already have</h1>
-      <p class="muted">Upload the PDF. It is rebuilt in a clean, parser-friendly one-page template with all of your content kept. Then check how applicant tracking systems read it, tailor it to a job, and download. Nothing is invented and every change is yours to approve.</p>
+      <p class="muted">Upload your PDF and it comes back in a clean one-page format with everything you wrote. Then check how applicant tracking systems read it, tailor it to a job, and download. You approve every change.</p>
       <label class="dropzone" id="dropzone">
         <input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden />
         <span id="dropText">Drop a PDF here or <u>browse</u></span>
@@ -79,7 +79,7 @@
           <span>Tailor to a job</span>
           <button type="button" class="link" id="closeTailor">Close</button>
         </div>
-        <p class="muted">Paste the job description, or a link to the posting. Claude scores the keyword match and proposes truthful rewording; nothing is invented.</p>
+        <p class="muted">Paste the job description or a link to the posting. You'll get a keyword match score and rewording suggestions that stick to what's already true.</p>
         <textarea id="jobInput" rows="5" placeholder="Paste the full job description here, or a link like https://boards.greenhouse.io/…"></textarea>
         <div class="suggestions-actions">
           <span class="muted" id="tailorHint"></span>
