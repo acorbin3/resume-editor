@@ -103,7 +103,7 @@ app.post("/api/coaching", express.json({ limit: "20kb" }), rateLimit("coaching",
     return res.status(503).json({ error: `The form isn't connected to email yet. Please email ${SUPPORT_EMAIL} directly.` });
   }
   try {
-    await sendMail({ to: SUPPORT_EMAIL, subject: `Coaching request from ${name} (${length})`, text: `${summary}\n\nReply to: ${email}` });
+    await sendMail({ to: SUPPORT_EMAIL, subject: `Coaching request from ${name} (${length})`, text: summary, replyTo: `${name} <${email}>` });
     await sendMail({ to: email, subject: "Your coaching request", text: `Hi ${name.split(" ")[0]},\n\nThanks for the request. Here's what you sent:\n\n${summary}\n\nI'll reply within a day with a few times and a payment link. If you need to add anything, just reply to this email.\n\nAdam` }).catch((err) => console.error(`Coaching receipt failed: ${err.message}`));
     markCoachingEmailed.run(id);
   } catch (err) {
