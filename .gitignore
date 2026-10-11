@@ -9,3 +9,6 @@ research_notes/
 reports/
 # Private overlay (billing etc.), lives in its own private repo
 private/
+.env.*
+!.env.example
+data-*/
