@@ -6,7 +6,8 @@ logs
 !.env.example
 .git
 .github
-docs
+docs/*
+!docs/screenshots
 reports
 research_notes
 deploy

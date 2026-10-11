@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f1f1d" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <title>Resume Editor: a resume that survives the software and reads well to people</title>
+  <meta name="description" content="Rebuild your resume in a clean, recruiter-trusted template, check how applicant tracking systems parse it, and tailor it to each job in minutes. Nothing invented; every change is yours to approve." />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .land { max-width: 980px; margin: 0 auto; padding: 0 20px 64px; }
+    .land-nav { display: flex; align-items: center; gap: 12px; padding: 16px 0; }
+    .land-nav .brand { font-weight: 700; font-size: 17px; }
+    .land-nav .spacer { flex: 1; }
+    .hero { padding: 40px 0 24px; display: grid; gap: 18px; }
+    .hero h1 { margin: 0; font-size: clamp(30px, 5vw, 46px); line-height: 1.1; letter-spacing: -0.01em; max-width: 760px; }
+    .hero p.lead { margin: 0; font-size: 18px; line-height: 1.5; color: var(--muted); max-width: 640px; }
+    .cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .cta .btn.big { font-size: 16px; padding: 12px 20px; }
+    .cta .fine { color: var(--muted); font-size: 13px; width: 100%; }
+    .shot { margin: 8px 0 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: 0 10px 40px rgb(0 0 0 / 0.12); }
+    .shot img { display: block; width: 100%; height: auto; }
+    section.block { padding: 40px 0 8px; }
+    section.block h2 { margin: 0 0 6px; font-size: 24px; letter-spacing: -0.01em; }
+    section.block p.sub { margin: 0 0 20px; color: var(--muted); font-size: 16px; max-width: 640px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: grid; gap: 8px; align-content: start; }
+    .card .n { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-weight: 700; font-size: 14px; }
+    .card h3 { margin: 0; font-size: 16px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .card.bad .n { background: rgb(220 38 38 / 0.12); color: #b91c1c; }
+    .steps { counter-reset: s; display: grid; gap: 10px; }
+    .step { display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .step::before { counter-increment: s; content: counter(s); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-text); font-weight: 700; }
+    .step b { display: block; margin-bottom: 2px; }
+    .step span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .plan-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: grid; gap: 10px; align-content: start; }
+    .plan-card.featured { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+    .plan-card .tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); font-weight: 700; }
+    .plan-card h3 { margin: 0; font-size: 18px; }
+    .plan-card .price { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+    .plan-card .price small { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+    .plan-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .plan-card .btn { justify-self: start; }
+    .trust { display: grid; gap: 6px; color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 700px; }
+    footer.land-foot { padding: 32px 0 0; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 12px; }
+    footer.land-foot a { color: var(--muted); }
+    @media (max-width: 600px) { .hero { padding-top: 20px; } .cta .btn { width: 100%; text-align: center; } }
+  </style>
+</head>
+<body>
+  <div class="land">
+    <nav class="land-nav">
+      <span class="brand">Resume Editor</span>
+      <span class="spacer"></span>
+      <a class="btn" href="/login.html">Sign in</a>
+    </nav>
+
+    <section class="hero">
+      <h1>Your resume is read by software before a person ever sees it. Make sure it survives.</h1>
+      <p class="lead">Resume Editor rebuilds your resume in the clean, one-page template recruiters and engineers trust, checks how applicant tracking systems actually parse the PDF, and tailors it to each job in minutes. Nothing is invented. Every change is a suggestion you approve.</p>
+      <div class="cta">
+        <a class="btn primary big" id="ctaTop" href="/login.html?mode=signup">Upload your resume</a>
+        <a class="btn big" href="#how">See how it works</a>
+        <span class="fine" id="ctaFine">Free to start. Takes about two minutes. PDF in, better PDF out.</span>
+      </div>
+      <figure class="shot"><img src="/screenshots/split-view.jpg" alt="The editor: rebuilt resume on the left with suggestions, the PDF preview on the right" width="1600" height="1000" loading="eager" /></figure>
+    </section>
+
+    <section class="block" id="why">
+      <h2>Why this exists</h2>
+      <p class="sub">Three things quietly cost people interviews, and the usual resume tools make them worse.</p>
+      <div class="cards">
+        <div class="card bad"><div class="n">1</div><h3>Most rejections happen before a human looks</h3><p>Applicant tracking systems turn your PDF into fields. Two-column layouts, icons, text boxes, skill bars, and a second title without the company on its own line get scrambled or dropped. The recruiter sees a mess, or nothing, and moves on.</p></div>
+        <div class="card bad"><div class="n">2</div><h3>Builders make generic resumes</h3><p>Colored sidebars and star ratings look the same to every recruiter and parse badly. Word templates drift every time the text reflows, so the one-page version you sent last month is now a page and a half.</p></div>
+        <div class="card bad"><div class="n">3</div><h3>Tailoring is what works, and nobody has time</h3><p>Rewording bullets to match the language of each posting is the single biggest lever on response rate. Done by hand it takes an hour per application, so it gets skipped.</p></div>
+      </div>
+    </section>
+
+    <section class="block" id="what">
+      <h2>What you get</h2>
+      <p class="sub">The parts of a great application that are tedious to do well by hand.</p>
+      <div class="cards">
+        <div class="card"><div class="n">✓</div><h3>A clean, typeset page</h3><p>Your content, rebuilt in the LaTeX template engineers and recruiters already know. Consistent spacing, real bullets, no drift. Download the PDF or the source.</p></div>
+        <div class="card"><div class="n">✓</div><h3>ATS check with fixes</h3><p>Eleven checks run on the real PDF: text extraction, reading order, contact details, headings, dates, fonts, and whether every role names its employer. Problems come with a one-click fix. Free and unlimited.</p></div>
+        <div class="card"><div class="n">✓</div><h3>Tailor to a job</h3><p>Paste a posting or a link. See a keyword match score, then accept, edit, or skip each suggested rewording. It only mirrors the posting where your experience truly supports it.</p></div>
+        <div class="card"><div class="n">✓</div><h3>Honest review</h3><p>Weak verbs, bullets with no result, orphan words, inconsistencies. Each suggestion is shown as a diff, highlighted on the PDF, and applied only when you say so.</p></div>
+        <div class="card"><div class="n">✓</div><h3>Fit to one page</h3><p>Measures the overflow and tightens wording before it cuts anything, keeping every employer, title, and date.</p></div>
+        <div class="card"><div class="n">✓</div><h3>Every version kept</h3><p>Each change is a new version with a word-level diff. Highlight any text on the PDF to comment on it, or edit the LaTeX yourself with the preview in sync.</p></div>
+      </div>
+    </section>
+
+    <section class="block" id="how">
+      <h2>How it works</h2>
+      <p class="sub">No forms to fill in. Start from the resume you already have.</p>
+      <div class="steps">
+        <div class="step"><div><b>Upload your current PDF</b><span>It is read and rebuilt in the template, keeping all of your content. Scanned PDFs work too.</span></div></div>
+        <div class="step"><div><b>Run the ATS check and review the suggestions</b><span>Fix anything a parser would trip on, then accept or skip each wording suggestion. You stay in control of every word.</span></div></div>
+        <div class="step"><div><b>Tailor per job and download</b><span>Paste the posting, watch the match score climb as you accept changes, and download a PDF named for that application. Repeat for the next one in minutes.</span></div></div>
+      </div>
+    </section>
+
+    <section class="block" id="pricing" hidden>
+      <h2>Pricing</h2>
+      <p class="sub">Priced for a job search, not a subscription you forget to cancel.</p>
+      <div class="plans">
+        <div class="plan-card">
+          <span class="tag">Free</span><h3>Import and check</h3><div class="price">$0</div>
+          <ul><li>Rebuild in the template</li><li>ATS check and fixes, unlimited</li><li>LaTeX editor, versions, downloads</li><li><span id="freeActions">3</span> AI actions a month</li></ul>
+          <a class="btn" href="/login.html?mode=signup">Start free</a>
+        </div>
+        <div class="plan-card featured">
+          <span class="tag">Most popular</span><h3>Job Search Pass</h3><div class="price"><span id="passPrice">$29</span> <small>once, <span id="passDays">60</span> days</small></div>
+          <ul><li>Unlimited tailoring and analysis</li><li>Unlimited edits and fit-to-one-page</li><li>Buy again to extend</li><li>No subscription</li></ul>
+          <a class="btn primary" href="/login.html?mode=signup&plan=pass">Get the pass</a>
+        </div>
+        <div class="plan-card">
+          <span class="tag">Ongoing</span><h3>Pro</h3><div class="price"><span id="proPrice">$12</span> <small>per month</small></div>
+          <ul><li>Everything in the pass</li><li>For coaches, recruiters, and serial optimizers</li><li>Cancel anytime</li></ul>
+          <a class="btn" href="/login.html?mode=signup&plan=pro">Go Pro</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="trust">
+      <h2>What happens to your resume</h2>
+      <div class="trust">
+        <div>Your resume is sent to Anthropic's Claude API to do the rebuilding and editing, and nowhere else. Under Anthropic's commercial terms, API data is not used to train models.</div>
+        <div>Only you can see your resumes. Delete any of them whenever you like.</div>
+        <div>Claude is told to never invent employers, dates, numbers, or skills. If a posting asks for something you don't have, it says so instead of making it up.</div>
+        <div>The editor itself is open source, so you can read exactly what it does.</div>
+      </div>
+    </section>
+
+    <footer class="land-foot">
+      <a href="https://github.com/acorbin3/resume-editor">Source on GitHub</a>
+      <a href="/login.html">Sign in</a>
+    </footer>
+  </div>
+  <script>
+    fetch("/api/public").then((r) => r.json()).then((c) => {
+      if (c.pricing) {
+        document.getElementById("pricing").hidden = false;
+        document.getElementById("freeActions").textContent = c.pricing.freeActions;
+        document.getElementById("passPrice").textContent = c.pricing.pass.price;
+        document.getElementById("passDays").textContent = c.pricing.pass.days;
+        document.getElementById("proPrice").textContent = c.pricing.pro.price;
+      }
+      if (!c.signupOpen) {
+        document.getElementById("ctaTop").href = "/login.html";
+        document.getElementById("ctaFine").textContent = "Sign-up is by invitation right now.";
+      }
+    }).catch(() => {});
+  </script>
+</body>
+</html>

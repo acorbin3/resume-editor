@@ -55,6 +55,9 @@
       info = i;
       $("signupTab").hidden = !i.signupOpen;
       $("googleBtn").hidden = !i.google;
+      const params = new URLSearchParams(location.search);
+      if (params.get("plan")) { try { sessionStorage.setItem("wantPlan", params.get("plan")); } catch {} }
+      if (params.get("mode") === "signup" && i.signupOpen) setMode("signup");
       if (!i.hasUsers && i.signupOpen) {
         $("hint").textContent = "No accounts yet. Create the first one.";
         setMode("signup");

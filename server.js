@@ -12,7 +12,7 @@ import { atsCheck, repeatEmployers, fetchJobPosting, pageWordCounts } from "./li
 import { screenPrompt } from "./lib/texguard.js";
 import { scoreKeywords } from "./public/keywords.js";
 import * as store from "./lib/store.js";
-import { signupOpen, requireAuth, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
+import { signupOpen, requireAuth, currentUser, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
 import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
 import { compileLane, claudeLane, queueStats } from "./lib/queue.js";
 import { createJob, recordEvent, getJob, activeJob, publicJob } from "./lib/jobs.js";
@@ -51,6 +51,11 @@ app.post("/api/login", login);
 app.post("/api/signup", signup);
 app.get("/api/auth/google", googleStart);
 app.get("/api/auth/google/callback", googleCallback);
+// Public landing page for visitors; signed-in users go straight to the app.
+app.get("/", (req, res, next) => (currentUser(req) ? next() : servePage("landing.html")(req, res)));
+app.get("/welcome", servePage("landing.html"));
+app.use("/screenshots", express.static("docs/screenshots", { maxAge: "1d" }));
+app.get("/api/public", (_req, res) => res.json({ signupOpen, pricing: plans.pricing || null }));
 app.use(requireAuth);
 app.post("/api/logout", logout);
 // Cache strategy that survives CDN defaults (Cloudflare rewrites no-cache to a 4h browser TTL):

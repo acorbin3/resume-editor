@@ -453,6 +453,7 @@ async function openResume(id) {
     addMessage("error", "This resume never finished converting. Upload the PDF again.");
   }
   resumePendingJob(id);
+  if (data.versions.length && data.versions.length <= 2) showNextSteps();
   // Bring back an analysis that finished after the connection dropped (or from last time).
   if (data.review?.suggestions?.length || data.review?.keywords?.length) {
     review = makeReview(data.review);
@@ -558,6 +559,7 @@ async function convert(file) {
         render(evt.tex);
         const pages = evt.state.versions.at(-1)?.pages || 1;
         toast(`Converted. ${pages} page${pages > 1 ? "s" : ""}.`);
+        showNextSteps();
         if (isMobile()) setPanel("pdf");
       }
       if (evt.type === "error") {
@@ -1622,6 +1624,37 @@ function autoGrow() {
 }
 $("promptInput").addEventListener("input", autoGrow);
 
+// ---------- First-run guidance ----------
+
+// A short checklist in the chat after the first conversion, until the person has used the
+// main features once (or dismisses it). Stored per browser.
+const onboardKey = "re:onboarded";
+const onboarded = () => { try { return localStorage.getItem(onboardKey) === "1"; } catch { return true; } };
+const markOnboarded = () => { try { localStorage.setItem(onboardKey, "1"); } catch {} document.querySelector(".msg.onboard")?.remove(); };
+function showNextSteps() {
+  if (onboarded() || document.querySelector(".msg.onboard")) return;
+  const el = document.createElement("div");
+  el.className = "msg assistant onboard";
+  el.innerHTML = `<b>Your resume is rebuilt. Three things worth doing now:</b>
+    <ol>
+      <li><button type="button" class="link" data-go="ats">Run the ATS check</button> to see how a parser reads this PDF. Free, and any problem has a one-click fix.</li>
+      <li><button type="button" class="link" data-go="tailor">Tailor it to a job</button> by pasting a posting. You get a keyword match score and truthful rewording to accept or skip.</li>
+      <li><button type="button" class="link" data-go="pdf">Download the PDF</button> or highlight any text on the preview to ask for a change.</li>
+    </ol>
+    <button type="button" class="link muted" data-go="dismiss">Got it, hide this</button>`;
+  el.addEventListener("click", (e) => {
+    const go = e.target.closest("button[data-go]")?.dataset.go;
+    if (!go) return;
+    if (go === "ats") $("atsBtn").click();
+    if (go === "tailor") openTailor();
+    if (go === "pdf") $("dlPdf").click();
+    if (go === "dismiss") markOnboarded();
+  });
+  $("messages").append(el);
+  $("messages").scrollTop = $("messages").scrollHeight;
+}
+for (const id of ["tailorGo", "dlPdf", "sheetPdf"]) $(id).addEventListener("click", () => { if (!onboarded()) setTimeout(markOnboarded, 500); });
+
 // ---------- Plan and limits (only when the server reports a plan) ----------
 
 let planShown = false;
@@ -1767,6 +1800,10 @@ window.addEventListener("beforeunload", (e) => {
       $("logoutBtn").textContent = `Sign out (${me.email})`;
       if (me.analytics) initAnalytics(me.analytics, me.id);
       showPlan(me.plan);
+      try {
+        const want = sessionStorage.getItem("wantPlan");
+        if (want && me.plan?.plan === "free") { sessionStorage.removeItem("wantPlan"); location.href = `/api/billing/checkout?plan=${encodeURIComponent(want)}`; }
+      } catch {}
     }).catch(() => {});
     $("logoutBtn").onclick = async () => {
       await fetch("/api/logout", { method: "POST" });
