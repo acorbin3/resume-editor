@@ -44,9 +44,20 @@
     .plan-card .price small { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
     .plan-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; line-height: 1.6; }
     .plan-card .btn { justify-self: start; }
-    .coach-cta { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; font-size: 15px; }
-    .coach-cta > div { flex: 1 1 280px; color: var(--muted); }
-    .coach-cta b { color: var(--text); }
+    .coach-form { margin-top: 14px; display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; font-size: 15px; }
+    .coach-head { display: grid; gap: 4px; }
+    .coach-head b { font-size: 17px; }
+    .coach-head .muted { font-size: 14px; }
+    .coach-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .coach-form .field > span:first-child { font-weight: 600; font-size: 14px; }
+    .coach-form .field .muted { font-weight: 400; }
+    .coach-form input, .coach-form textarea { font: inherit; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+    .coach-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .coach-chips button { font: inherit; font-size: 14px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+    .coach-chips button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-weight: 600; }
+    .coach-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .coach-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    .coach-form.sent > :not(.coach-head) { display: none; }
     .trust { display: grid; gap: 6px; color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 700px; }
     footer.land-foot { padding: 32px 0 0; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 12px; }
     footer.land-foot a { color: var(--muted); }
@@ -138,10 +149,38 @@
         <div class="card"><div class="n">2</div><h3>Interview prep</h3><p>Mock interviews for behavioral, system design, and hiring-manager rounds, with direct feedback on what a panel actually hears.</p></div>
         <div class="card"><div class="n">3</div><h3>Career coaching</h3><p>Deciding between offers, going for a promotion, moving into management, or getting unstuck after a layoff.</p></div>
       </div>
-      <div class="coach-cta">
-        <div><b>$200 per hour</b>, video call, booked by email. Pay in advance, reschedule up to 24 hours before.</div>
-        <a class="btn primary" id="coachBtn" href="#">Email to book a session</a>
-      </div>
+      <form class="coach-form" id="coachForm">
+        <div class="coach-head"><b>Book a session</b><span class="muted">$100 per 30 minutes, video call. You'll get a reply within a day with times and a payment link. Reschedule up to 24 hours before.</span></div>
+        <div class="coach-grid">
+          <label class="field"><span>Your name</span><input type="text" name="name" required maxlength="120" autocomplete="name" /></label>
+          <label class="field"><span>Email</span><input type="email" name="email" required maxlength="200" autocomplete="email" /></label>
+        </div>
+        <div class="field"><span>What do you want to cover? <span class="muted">Pick any</span></span>
+          <div class="coach-chips" id="coachTopics">
+            <button type="button" data-topic="Resume review">Resume review</button>
+            <button type="button" data-topic="Mock behavioral interview">Mock behavioral interview</button>
+            <button type="button" data-topic="System design interview">System design interview</button>
+            <button type="button" data-topic="Hiring manager round">Hiring manager round</button>
+            <button type="button" data-topic="Offer negotiation">Offer negotiation</button>
+            <button type="button" data-topic="Promotion or moving into management">Promotion / management</button>
+            <button type="button" data-topic="Job search strategy">Job search strategy</button>
+            <button type="button" data-topic="Something else">Something else</button>
+          </div>
+        </div>
+        <div class="field"><span>Session length</span>
+          <div class="coach-chips coach-length" id="coachLength">
+            <button type="button" data-length="30 minutes ($100)" class="on">30 min · $100</button>
+            <button type="button" data-length="60 minutes ($200)">60 min · $200</button>
+            <button type="button" data-length="90 minutes ($300)">90 min · $300</button>
+          </div>
+        </div>
+        <label class="field"><span>Anything else? <span class="muted">Target role, where you're stuck, times that work for you and your time zone</span></span><textarea name="notes" rows="3" maxlength="2000"></textarea></label>
+        <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+        <div class="coach-actions">
+          <button type="submit" class="btn primary big" id="coachSubmit">Request a session</button>
+          <span class="muted" id="coachStatus"></span>
+        </div>
+      </form>
     </section>
 
     <section class="block" id="trust">
@@ -163,6 +202,41 @@
     </footer>
   </div>
   <script>
+    let support = "";
+    // Booking form: topic chips toggle, one length at a time.
+    document.querySelectorAll("#coachTopics button").forEach((b) => (b.onclick = () => b.classList.toggle("on")));
+    document.querySelectorAll("#coachLength button").forEach((b) => (b.onclick = () => {
+      document.querySelectorAll("#coachLength button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+    }));
+    const coachForm = document.getElementById("coachForm");
+    coachForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("coachStatus");
+      const btn = document.getElementById("coachSubmit");
+      const topics = [...document.querySelectorAll("#coachTopics button.on")].map((b) => b.dataset.topic);
+      if (!topics.length) { status.textContent = "Pick at least one topic."; return; }
+      const body = {
+        name: coachForm.name.value.trim(),
+        email: coachForm.email.value.trim(),
+        topics,
+        length: document.querySelector("#coachLength button.on").dataset.length,
+        notes: coachForm.notes.value.trim(),
+        website: coachForm.website.value,
+      };
+      btn.disabled = true;
+      status.textContent = "Sending…";
+      try {
+        const res = await fetch("/api/coaching", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Something went wrong.");
+        coachForm.classList.add("sent");
+        coachForm.querySelector(".coach-head .muted").textContent = `Thanks, ${body.name.split(" ")[0]}. Your request is in; expect a reply at ${body.email} within a day.`;
+      } catch (err) {
+        status.textContent = err.message + (support ? ` You can also email ${support}.` : "");
+        btn.disabled = false;
+      }
+    };
     fetch("/api/public").then((r) => r.json()).then((c) => {
       if (c.pricing) {
         document.getElementById("pricing").hidden = false;
@@ -172,10 +246,8 @@
         document.getElementById("proPrice").textContent = c.pricing.pro.price;
       }
       if (c.support) {
-        const subject = encodeURIComponent("Coaching session");
-        const body = encodeURIComponent("Hi Adam,\n\nI'd like to book a coaching session.\n\nWhat I want help with (resume review / interview prep / career):\n\nRole or company I'm targeting:\n\nA few times that work for me (with time zone):\n");
-        document.getElementById("coachBtn").href = `mailto:${c.support}?subject=${subject}&body=${body}`;
         document.getElementById("supportLink").href = `mailto:${c.support}?subject=${encodeURIComponent("Resume Editor support")}`;
+        support = c.support;
       }
       if (!c.signupOpen) {
         document.getElementById("ctaTop").href = "/login.html";

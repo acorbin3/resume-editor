@@ -20,7 +20,7 @@ Source code: https://github.com/acorbin3/resume-editor (open source; a private a
 - Free: import, ATS check and fixes, LaTeX editor, versions, downloads, and a small monthly allowance of AI actions.
 - Job Search Pass: one-time payment for 60 days of unlimited AI actions. No subscription.
 - Pro: monthly subscription, unlimited, cancel anytime.
-- Career coaching: one-on-one sessions with an engineering manager (resume review, interview preparation, career planning), $200 per hour, booked by email.
+- Career coaching: one-on-one sessions with an engineering manager (resume review, interview preparation, career planning), $100 per 30 minutes, requested through the booking form on /welcome#coaching.
 
 Current prices and the support address are published at https://paidresume.adamcorbin.com/api/public.
 

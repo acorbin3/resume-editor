@@ -14,6 +14,7 @@ import { scoreKeywords } from "./public/keywords.js";
 import * as store from "./lib/store.js";
 import { signupOpen, requireAuth, currentUser, login, signup, logout, authInfo, googleStart, googleCallback, requestReset, resetPassword } from "./lib/auth.js";
 import { rateLimit } from "./lib/ratelimit.js";
+import { sendMail, mailEnabled } from "./lib/mail.js";
 import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
 import { compileLane, claudeLane, queueStats } from "./lib/queue.js";
 import { createJob, recordEvent, getJob, activeJob, publicJob } from "./lib/jobs.js";
@@ -67,6 +68,51 @@ for (const f of ["robots.txt", "llms.txt", "sitemap.txt"]) app.get(`/${f}`, (_re
 app.use("/screenshots", express.static("docs/screenshots", { maxAge: "1d" }));
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "acorbin3@gmail.com";
 app.get("/api/public", (_req, res) => res.json({ signupOpen, pricing: plans.pricing || null, support: SUPPORT_EMAIL }));
+
+// Coaching requests from the landing page form. Every request is stored first so none is
+// lost if email is down; then the operator gets the details and the requester a receipt.
+db.exec(`CREATE TABLE IF NOT EXISTS coaching_requests (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  email      TEXT NOT NULL,
+  topics     TEXT NOT NULL,
+  length     TEXT NOT NULL,
+  notes      TEXT NOT NULL DEFAULT '',
+  ip         TEXT,
+  emailed    INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+)`);
+const insertCoaching = db.prepare("INSERT INTO coaching_requests (name, email, topics, length, notes, ip) VALUES (?, ?, ?, ?, ?, ?)");
+const markCoachingEmailed = db.prepare("UPDATE coaching_requests SET emailed = 1 WHERE id = ?");
+const str = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+app.post("/api/coaching", express.json({ limit: "20kb" }), rateLimit("coaching", { max: 5, windowMs: HOUR, message: "That's enough requests for now. Email us instead." }), async (req, res) => {
+  const b = req.body || {};
+  if (b.website) return res.json({ ok: true }); // honeypot field: bots fill it, people can't see it
+  const name = str(b.name, 120);
+  const email = str(b.email, 200);
+  const topics = Array.isArray(b.topics) ? b.topics.map((t) => str(t, 60)).filter(Boolean).slice(0, 8) : [];
+  const length = str(b.length, 40);
+  const notes = str(b.notes, 2000);
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !topics.length || !length) {
+    return res.status(400).json({ error: "Name, a valid email, at least one topic, and a session length are needed." });
+  }
+  const id = Number(insertCoaching.run(name, email, topics.join(", "), length, notes, req.headers["cf-connecting-ip"] || req.ip).lastInsertRowid);
+  const summary = `Name: ${name}\nEmail: ${email}\nSession: ${length}\nTopics: ${topics.join(", ")}\n\nNotes:\n${notes || "(none)"}\n\nRequest #${id} · ${new Date().toISOString()}`;
+  if (process.env.NODE_ENV === "production" && !mailEnabled) {
+    console.error(`Coaching request #${id} saved; email isn't configured (RESEND_API_KEY)`);
+    return res.status(503).json({ error: `The form isn't connected to email yet. Please email ${SUPPORT_EMAIL} directly.` });
+  }
+  try {
+    await sendMail({ to: SUPPORT_EMAIL, subject: `Coaching request from ${name} (${length})`, text: `${summary}\n\nReply to: ${email}` });
+    await sendMail({ to: email, subject: "Your coaching request", text: `Hi ${name.split(" ")[0]},\n\nThanks for the request. Here's what you sent:\n\n${summary}\n\nI'll reply within a day with a few times and a payment link. If you need to add anything, just reply to this email.\n\nAdam` }).catch((err) => console.error(`Coaching receipt failed: ${err.message}`));
+    markCoachingEmailed.run(id);
+  } catch (err) {
+    console.error(`Coaching request #${id} saved but email failed: ${err.message}`);
+    return res.status(502).json({ error: `Your request was saved but the email didn't go through. To be safe, also email ${SUPPORT_EMAIL}.` });
+  }
+  track(null, "coaching_requested", { length, topics: topics.length });
+  res.json({ ok: true, id });
+});
 app.use(requireAuth);
 app.post("/api/logout", logout);
 // Cache strategy that survives CDN defaults (Cloudflare rewrites no-cache to a 4h browser TTL):
