@@ -44,6 +44,9 @@
     .plan-card .price small { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
     .plan-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; line-height: 1.6; }
     .plan-card .btn { justify-self: start; }
+    .coach-cta { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; font-size: 15px; }
+    .coach-cta > div { flex: 1 1 280px; color: var(--muted); }
+    .coach-cta b { color: var(--text); }
     .trust { display: grid; gap: 6px; color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 700px; }
     footer.land-foot { padding: 32px 0 0; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 12px; }
     footer.land-foot a { color: var(--muted); }
@@ -107,7 +110,7 @@
 
     <section class="block" id="pricing" hidden>
       <h2>Pricing</h2>
-      <p class="sub">Priced for a job search, not a subscription you forget to cancel.</p>
+      <p class="sub">Priced for a job search, not a subscription you forget to cancel. Human coaching is <a href="#coaching">below</a>.</p>
       <div class="plans">
         <div class="plan-card">
           <span class="tag">Free</span><h3>Import and check</h3><div class="price">$0</div>
@@ -127,6 +130,20 @@
       </div>
     </section>
 
+    <section class="block" id="coaching">
+      <h2>Work with a human</h2>
+      <p class="sub">Software gets your resume past the filter. For the parts that need judgment, book time with an engineering manager who has hired for and interviewed hundreds of engineering roles.</p>
+      <div class="cards">
+        <div class="card"><div class="n">1</div><h3>Resume review</h3><p>A line-by-line read of your resume against the roles you want, with the changes explained so you can keep making them yourself.</p></div>
+        <div class="card"><div class="n">2</div><h3>Interview prep</h3><p>Mock interviews for behavioral, system design, and hiring-manager rounds, with direct feedback on what a panel actually hears.</p></div>
+        <div class="card"><div class="n">3</div><h3>Career coaching</h3><p>Deciding between offers, going for a promotion, moving into management, or getting unstuck after a layoff.</p></div>
+      </div>
+      <div class="coach-cta">
+        <div><b>$200 per hour</b>, video call, booked by email. Pay in advance, reschedule up to 24 hours before.</div>
+        <a class="btn primary" id="coachBtn" href="#">Email to book a session</a>
+      </div>
+    </section>
+
     <section class="block" id="trust">
       <h2>What happens to your resume</h2>
       <div class="trust">
@@ -139,6 +156,9 @@
 
     <footer class="land-foot">
       <a href="https://github.com/acorbin3/resume-editor">Source on GitHub</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a id="supportLink" href="#">Support</a>
       <a href="/login.html">Sign in</a>
     </footer>
   </div>
@@ -150,6 +170,12 @@
         document.getElementById("passPrice").textContent = c.pricing.pass.price;
         document.getElementById("passDays").textContent = c.pricing.pass.days;
         document.getElementById("proPrice").textContent = c.pricing.pro.price;
+      }
+      if (c.support) {
+        const subject = encodeURIComponent("Coaching session");
+        const body = encodeURIComponent("Hi Adam,\n\nI'd like to book a coaching session.\n\nWhat I want help with (resume review / interview prep / career):\n\nRole or company I'm targeting:\n\nA few times that work for me (with time zone):\n");
+        document.getElementById("coachBtn").href = `mailto:${c.support}?subject=${subject}&body=${body}`;
+        document.getElementById("supportLink").href = `mailto:${c.support}?subject=${encodeURIComponent("Resume Editor support")}`;
       }
       if (!c.signupOpen) {
         document.getElementById("ctaTop").href = "/login.html";

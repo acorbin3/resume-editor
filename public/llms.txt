@@ -1,0 +1,36 @@
+# Resume Editor
+
+> Resume Editor rebuilds a resume PDF in a clean, parser-friendly one-page LaTeX template, checks how applicant tracking systems (ATS) read the PDF, and tailors it to a specific job posting with reviewable, truthful suggestions. Nothing is invented; every change is a suggestion the person approves.
+
+Site: https://paidresume.adamcorbin.com
+Operator: Adam Corbin, an engineering manager. Support: see /api/public (field "support") or the footer of /welcome.
+Source code: https://github.com/acorbin3/resume-editor (open source; a private add-on handles billing)
+
+## What it does
+
+- Upload an existing resume PDF (text or scanned). Claude rewrites it into the LaTeX template, keeping all content.
+- ATS check: twelve checks run on the real PDF (text extraction, reading order, contact details, section headings, dates, fonts, images, encoding, whether every role names its employer, length). Problems come with one-click fixes.
+- Tailor to a job: paste a posting or a link, get a keyword match score and per-bullet rewording suggestions. Each suggestion is a diff you accept, edit, or skip.
+- Honest review: weak verbs, bullets without results, orphan words, inconsistencies.
+- Fit to one page: measures overflow and tightens wording before cutting anything.
+- Versions: every change is a new version with a word-level diff; the LaTeX is editable with the PDF preview in sync.
+
+## Pricing
+
+- Free: import, ATS check and fixes, LaTeX editor, versions, downloads, and a small monthly allowance of AI actions.
+- Job Search Pass: one-time payment for 60 days of unlimited AI actions. No subscription.
+- Pro: monthly subscription, unlimited, cancel anytime.
+- Career coaching: one-on-one sessions with an engineering manager (resume review, interview preparation, career planning), $200 per hour, booked by email.
+
+Current prices and the support address are published at https://paidresume.adamcorbin.com/api/public.
+
+## Data
+
+Resumes are sent to Anthropic's Claude API for the rebuilding and editing, and nowhere else. Under Anthropic's commercial terms, API data is not used to train models. People can delete all their resumes or their whole account from Settings at any time. Details: /privacy. Terms: /terms.
+
+## Pages
+
+- /welcome: landing page explaining the product
+- /terms: terms of service
+- /privacy: privacy policy
+- /login.html: sign in or create an account

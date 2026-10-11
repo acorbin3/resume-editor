@@ -12,7 +12,8 @@ import { atsCheck, repeatEmployers, fetchJobPosting, pageWordCounts } from "./li
 import { screenPrompt } from "./lib/texguard.js";
 import { scoreKeywords } from "./public/keywords.js";
 import * as store from "./lib/store.js";
-import { signupOpen, requireAuth, currentUser, login, signup, logout, authInfo, googleStart, googleCallback } from "./lib/auth.js";
+import { signupOpen, requireAuth, currentUser, login, signup, logout, authInfo, googleStart, googleCallback, requestReset, resetPassword } from "./lib/auth.js";
+import { rateLimit } from "./lib/ratelimit.js";
 import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
 import { compileLane, claudeLane, queueStats } from "./lib/queue.js";
 import { createJob, recordEvent, getJob, activeJob, publicJob } from "./lib/jobs.js";
@@ -47,15 +48,25 @@ app.get("/api/build", (_req, res) => {
   res.json({ id: currentBuildId() });
 });
 app.get("/api/auth", authInfo);
-app.post("/api/login", login);
-app.post("/api/signup", signup);
+const HOUR = 60 * 60 * 1000;
+// AI actions cost money: cap per network on top of the per-account plan limits.
+const aiLimit = rateLimit("ai", { max: 60, windowMs: HOUR, message: "That's a lot of requests from this network. Try again in an hour." });
+app.post("/api/login", rateLimit("login", { max: 30, windowMs: 15 * 60 * 1000 }), login);
+app.post("/api/signup", rateLimit("signup", { max: 5, windowMs: HOUR, message: "Too many new accounts from this network. Try again in an hour." }), signup);
+app.post("/api/reset", rateLimit("reset", { max: 5, windowMs: HOUR, message: "Too many reset requests. Try again in an hour." }), requestReset);
+app.post("/api/reset/confirm", rateLimit("reset-confirm", { max: 10, windowMs: HOUR }), resetPassword);
 app.get("/api/auth/google", googleStart);
 app.get("/api/auth/google/callback", googleCallback);
 // Public landing page for visitors; signed-in users go straight to the app.
 app.get("/", (req, res, next) => (currentUser(req) ? next() : servePage("landing.html")(req, res)));
 app.get("/welcome", servePage("landing.html"));
+app.get("/terms", servePage("terms.html"));
+app.get("/privacy", servePage("privacy.html"));
+app.get("/reset.html", servePage("reset.html"));
+for (const f of ["robots.txt", "llms.txt", "sitemap.txt"]) app.get(`/${f}`, (_req, res) => res.type("text/plain").sendFile(path.resolve("public", f)));
 app.use("/screenshots", express.static("docs/screenshots", { maxAge: "1d" }));
-app.get("/api/public", (_req, res) => res.json({ signupOpen, pricing: plans.pricing || null }));
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "acorbin3@gmail.com";
+app.get("/api/public", (_req, res) => res.json({ signupOpen, pricing: plans.pricing || null, support: SUPPORT_EMAIL }));
 app.use(requireAuth);
 app.post("/api/logout", logout);
 // Cache strategy that survives CDN defaults (Cloudflare rewrites no-cache to a 4h browser TTL):
@@ -246,7 +257,7 @@ app.get("/api/resumes/:id", async (req, res) => {
 });
 
 // Upload a PDF and convert it to the template.
-app.post("/api/resumes", upload.single("pdf"), gate("convert"), async (req, res) => {
+app.post("/api/resumes", upload.single("pdf"), aiLimit, gate("convert"), async (req, res) => {
   const startedAt = Date.now();
   if (!req.file) return res.status(400).json({ error: "Attach a PDF." });
   if (!req.file.originalname.toLowerCase().endsWith(".pdf")) return res.status(400).json({ error: "Only PDF files are supported." });
@@ -283,7 +294,7 @@ app.post("/api/resumes", upload.single("pdf"), gate("convert"), async (req, res)
 });
 
 // Prompt-driven tweak.
-app.post("/api/resumes/:id/edit", gate("edit"), async (req, res) => {
+app.post("/api/resumes/:id/edit", aiLimit, gate("edit"), async (req, res) => {
   const startedAt = Date.now();
   const prompt = (req.body.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Enter a change to make." });
@@ -313,7 +324,7 @@ app.post("/api/resumes/:id/edit", gate("edit"), async (req, res) => {
 });
 
 // Review the current version and return suggestions for the user to accept or skip.
-app.post("/api/resumes/:id/analyze", gate("analyze"), async (req, res) => {
+app.post("/api/resumes/:id/analyze", aiLimit, gate("analyze"), async (req, res) => {
   const startedAt = Date.now();
   const screened = screenPrompt((req.body.focus || "").trim(), 2000);
   if (screened) return res.status(400).json({ error: screened });
@@ -389,7 +400,7 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
 
 // Tailor to a job posting: pasted text or a link. Produces a keyword match score plus
 // suggestions in the same shape as /analyze, so accept/edit/skip/apply is shared.
-app.post("/api/resumes/:id/tailor", gate("tailor"), async (req, res) => {
+app.post("/api/resumes/:id/tailor", aiLimit, gate("tailor"), async (req, res) => {
   const startedAt = Date.now();
   const pasted = String(req.body.job || "").trim();
   const url = String(req.body.url || "").trim();
@@ -431,7 +442,7 @@ app.post("/api/resumes/:id/tailor", gate("tailor"), async (req, res) => {
 });
 
 // Fit to one page: up to three increasingly firm passes, each told how much spilled over.
-app.post("/api/resumes/:id/fit", gate("fit"), async (req, res) => {
+app.post("/api/resumes/:id/fit", aiLimit, gate("fit"), async (req, res) => {
   const startedAt = Date.now();
   const meta = lookup(req, res);
   if (!meta) return;

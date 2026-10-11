@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f1f1d" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <title>Reset password · Resume Editor</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="upload-view">
+    <form id="form" class="upload-card login-card">
+      <h1 id="title">Reset your password</h1>
+      <p class="muted" id="lead">Enter the email address for your account and we'll send a link to set a new password.</p>
+      <label class="field" id="emailField">
+        <span>Email</span>
+        <input type="email" id="email" autocomplete="email" autofocus />
+      </label>
+      <label class="field" id="passwordField" hidden>
+        <span>New password</span>
+        <input type="password" id="password" autocomplete="new-password" minlength="8" />
+      </label>
+      <div class="login-error" id="error" hidden></div>
+      <p class="muted" id="done" hidden></p>
+      <button class="btn primary big" type="submit" id="submit">Send reset link</button>
+      <p class="muted"><a href="/login.html">Back to sign in</a></p>
+    </form>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const token = new URLSearchParams(location.search).get("token");
+    if (token) {
+      $("title").textContent = "Choose a new password";
+      $("lead").textContent = "This signs you in and signs out every other device.";
+      $("emailField").hidden = true;
+      $("passwordField").hidden = false;
+      $("submit").textContent = "Set password";
+      $("password").focus();
+    }
+    $("form").onsubmit = async (e) => {
+      e.preventDefault();
+      $("error").hidden = true;
+      $("submit").disabled = true;
+      try {
+        const res = token
+          ? await fetch("/api/reset/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, password: $("password").value }) })
+          : await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("email").value.trim() }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Something went wrong.");
+        if (token) return location.replace("/");
+        $("done").textContent = data.message;
+        $("done").hidden = false;
+        $("emailField").hidden = true;
+        $("submit").hidden = true;
+      } catch (err) {
+        $("error").textContent = err.message;
+        $("error").hidden = false;
+        $("submit").disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

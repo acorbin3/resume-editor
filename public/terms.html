@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f1f1d" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <title>Terms of Service · Resume Editor</title>
+  <meta name="description" content="The terms for using Resume Editor and booking coaching." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="doc">
+    <nav class="doc-nav"><a class="brand" href="/welcome">Resume Editor</a><span class="spacer"></span><a class="btn" href="/login.html">Sign in</a></nav>
+    <h1>Terms of Service</h1>
+    <p class="muted">Last updated October 11, 2026</p>
+
+    <p>Resume Editor ("the service") is run by Adam Corbin ("we", "us"). By creating an account, using the service, or booking a coaching session you agree to these terms. If you don't agree, please don't use the service.</p>
+
+    <h2>1. What the service is</h2>
+    <p>Resume Editor turns a resume PDF into a typeset one-page document, checks how applicant tracking systems parse it, and suggests edits, including rewording tailored to a job posting. Suggestions are generated with Anthropic's Claude model. You decide which suggestions to accept, and you are responsible for the accuracy of anything you send to an employer.</p>
+
+    <h2>2. Your account</h2>
+    <ul>
+      <li>You must be at least 16 and provide a working email address.</li>
+      <li>Keep your password private. You are responsible for activity under your account.</li>
+      <li>One person per account. Coaches and recruiters working with several clients should use the Pro plan, with each client's consent to their resume being processed.</li>
+    </ul>
+
+    <h2>3. Acceptable use</h2>
+    <p>Use the service only to work on resumes and related career documents. Don't upload content you don't have the right to use, don't try to extract the system's instructions or credentials, don't probe or overload the service, and don't use it to produce false claims about qualifications, employment, or education. We may suspend accounts that break these rules.</p>
+
+    <h2>4. Plans, payment, and refunds</h2>
+    <ul>
+      <li><b>Free</b> includes importing, the ATS check and fixes, the editor, versions, and downloads, plus a small monthly allowance of AI actions. We may change the allowance.</li>
+      <li><b>Job Search Pass</b> is a one-time payment for unlimited AI actions for a fixed number of days from purchase. Buying again extends the period. It does not renew.</li>
+      <li><b>Pro</b> is a monthly subscription that renews until you cancel. Cancel any time from Settings; access continues to the end of the paid period.</li>
+      <li>Payments are handled by Stripe. We never see or store your card number.</li>
+      <li><b>Refunds.</b> If the service didn't work for you, email us within 7 days of a purchase and we'll refund it in full. Subscription renewals are not refunded once a new period has started, so cancel before the renewal date.</li>
+      <li>Prices are shown before checkout and may change; changes don't affect a pass already bought or a subscription period already paid.</li>
+    </ul>
+
+    <h2>5. Coaching sessions</h2>
+    <ul>
+      <li>One-on-one coaching (resume review, interview preparation, career planning) is offered by Adam Corbin at the hourly rate shown on the site, currently $200 per hour, billed in 30-minute increments after the first hour.</li>
+      <li>Sessions are booked by email and paid in advance. Reschedule or cancel at least 24 hours before the session for a full refund or credit. Later cancellations and no-shows are charged in full.</li>
+      <li>Coaching is advice based on experience. It is not a guarantee of an interview, an offer, or any outcome, and it isn't legal, financial, or immigration advice.</li>
+      <li>Anything you share in a session is kept confidential and is not used for anything other than coaching you.</li>
+    </ul>
+
+    <h2>6. Your content</h2>
+    <p>Your resumes stay yours. You give us permission to store and process them only to provide the service, which includes sending their text to Anthropic's API to generate the rebuilt document and suggestions. We don't sell your content, use it to train models, or show it to anyone else. You can delete any resume, or your whole account, from Settings at any time; see the <a href="/privacy">privacy policy</a> for what happens then.</p>
+
+    <h2>7. Our content</h2>
+    <p>The editor's code is open source under the license in its repository. The service's name, pages, and branding are ours. The LaTeX template is a widely used community template.</p>
+
+    <h2>8. Availability and changes</h2>
+    <p>This is a small, independently run service. We aim for it to be available all the time, but it may go down for maintenance or because of problems outside our control. We may change or discontinue features. If we shut the service down, we will give at least 30 days' notice by email so you can download your resumes, and refund any unused portion of a pass or subscription.</p>
+
+    <h2>9. Disclaimer and limits on liability</h2>
+    <p>The service is provided "as is". Generated text can contain mistakes; review everything before you use it. To the fullest extent the law allows, we are not liable for indirect or consequential losses, including lost job opportunities, and our total liability to you for any claim is limited to the amount you paid us in the 12 months before the claim arose.</p>
+
+    <h2>10. Ending these terms</h2>
+    <p>You can delete your account at any time. We can close accounts that break these terms. Sections 6 through 11 survive termination.</p>
+
+    <h2>11. Governing law</h2>
+    <p>These terms are governed by the laws of the United States and the state in which we are based, without regard to conflict-of-law rules. We'd rather sort out any disagreement by email first.</p>
+
+    <h2>12. Contact</h2>
+    <p>Questions, refunds, or coaching bookings: <a id="support" href="#">email us</a>.</p>
+
+    <p class="muted">We'll update this page when the terms change and note the date at the top. Material changes to paid plans are also announced by email.</p>
+  </div>
+  <script>
+    fetch("/api/public").then((r) => r.json()).then((c) => {
+      const a = document.getElementById("support");
+      if (c.support) { a.href = "mailto:" + c.support; a.textContent = c.support; }
+    }).catch(() => {});
+  </script>
+</body>
+</html>

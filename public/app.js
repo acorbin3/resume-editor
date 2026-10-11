@@ -1619,6 +1619,9 @@ function openSettings() {
     link.hidden = true;
   }
   for (const box of document.querySelectorAll(".danger")) resetDanger(box);
+  fetch("/api/public").then((r) => r.json()).then((c) => {
+    if (c.support) $("settingsSupport").href = `mailto:${c.support}?subject=${encodeURIComponent("Resume Editor support")}&body=${encodeURIComponent(`\n\n(signed in as ${me?.email || ""})`)}`;
+  }).catch(() => {});
   $("settings").hidden = false;
   $("settingsBackdrop").hidden = false;
 }

@@ -77,7 +77,9 @@ Needs Node 22+. Without an API key it shells out to [Claude Code](https://claude
 ## Accounts and storage
 
 Everyone gets their own account (email + password, or Google sign-in when configured) and only sees
-their own resumes. Sign-up is open by default; set `SIGNUP_CODE` to require an invite code or
+their own resumes. Settings lets a person delete all their resumes or their whole account; both sweep
+the blob store so nothing of theirs stays on disk. `/terms` and `/privacy` are the legal pages; edit
+them for your own deployment. Sign-up is open by default; set `SIGNUP_CODE` to require an invite code or
 `ALLOW_SIGNUP=false` to close it.
 
 Under `data/`:
@@ -137,6 +139,9 @@ LaTeX edits, versions, downloads) are never gated.
 - `SIGNUP_CODE` / `ALLOW_SIGNUP`: control who can create an account.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `APP_URL`: enable "Continue with Google".
 - `POSTHOG_KEY` / `POSTHOG_HOST`: product analytics.
+- `RESEND_API_KEY` / `MAIL_FROM`: outbound email for password resets (Resend). Without a key, reset
+  emails are printed to the log; in production the reset form says to contact support instead.
+- `SUPPORT_EMAIL`: shown on the landing page, settings, terms, and privacy pages, and used for coaching bookings.
 - `DATA_DIR`: where the database, repos, and blobs live (default `./data`).
 
 ## Docker (try it out, or deploy)
@@ -194,7 +199,11 @@ secure cookies).
   read or write your home folder (except tectonic's cache), with `--untrusted`.
 - Without an API key, `claude -p` runs with no tools when it has text, or only Read inside a temp folder when it
   needs the PDF. Reads outside that folder are denied.
-- Login attempts are limited to 10 failures per IP per 15 minutes.
+- Per-IP rate limits (`lib/ratelimit.js`): 30 logins per 15 minutes (plus lockout after 10 failures), 5 sign-ups
+  and 5 reset requests per hour, 60 AI actions per hour. Behind Cloudflare the client address comes from
+  `cf-connecting-ip`. Cloudflare's own rate-limiting rules are a good second layer for the same paths.
+- Password reset links are random 32-byte tokens stored hashed, valid for one hour, single use, and setting
+  a new password ends every other session for that account.
 - API-key requests use `fallbacks: "default"`, so if Claude declines a request, it's retried on a fallback model.
 
 ## License

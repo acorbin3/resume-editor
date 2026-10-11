@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f1f1d" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <title>Privacy Policy · Resume Editor</title>
+  <meta name="description" content="What Resume Editor collects, where your resume goes, and how to delete it." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="doc">
+    <nav class="doc-nav"><a class="brand" href="/welcome">Resume Editor</a><span class="spacer"></span><a class="btn" href="/login.html">Sign in</a></nav>
+    <h1>Privacy Policy</h1>
+    <p class="muted">Last updated October 11, 2026</p>
+
+    <p>A resume is personal. This page says exactly what Resume Editor collects, who sees it, and how to get rid of it. The service is run by Adam Corbin.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><b>Account:</b> your email address and a hashed password, or your Google account id if you sign in with Google. Google gives us only your email address and the fact that it is verified.</li>
+      <li><b>Your resumes:</b> the PDF you upload, the text extracted from it, every version of the rebuilt document, your chat requests and comments, job postings you paste for tailoring, and the suggestions and reviews generated for you.</li>
+      <li><b>Usage:</b> a record of each AI action (type, time, duration, and token counts) used to enforce plan limits and track our costs. These records are kept after you delete your account but are no longer linked to you.</li>
+      <li><b>Billing:</b> Stripe's customer and subscription ids and which plan you're on. Stripe holds your card details and billing address; we never see the card number. Stripe's privacy policy applies to that data.</li>
+      <li><b>Technical:</b> server logs with request paths, timestamps, and IP addresses, kept for a short time for security and debugging. If product analytics is enabled, we record which features are used, linked to your account id, so we can improve the service. We do not use advertising trackers.</li>
+    </ul>
+
+    <h2>Where your resume goes</h2>
+    <p>To rebuild, review, and tailor your resume, its text (and, for scanned PDFs, the page images) is sent to <b>Anthropic's Claude API</b>. Under Anthropic's commercial terms, data sent through the API is not used to train their models and is retained by them only briefly for abuse monitoring. Your resume is not sent to any other third party, and we never sell or share it.</p>
+    <p>If you paste a link to a job posting, our server fetches that page to read the posting. The site you link to sees our server's request, not you.</p>
+
+    <h2>Who can see it</h2>
+    <p>Only you, signed in to your account. We don't browse customer resumes. The operator may look at a specific resume to debug a problem you've reported, and only then.</p>
+
+    <h2>Where it's stored</h2>
+    <p>On servers we control in the United States. Data is encrypted in transit. Uploaded and generated PDFs are stored by content hash, which means identical files are kept once.</p>
+
+    <h2>How long we keep it</h2>
+    <ul>
+      <li>Resumes and versions: until you delete them or your account.</li>
+      <li>Account: until you delete it.</li>
+      <li>Sessions: 30 days of inactivity. Password reset links: one hour.</li>
+      <li>Billing records: as long as tax and accounting rules require, even after account deletion.</li>
+      <li>Logs: a short rolling window.</li>
+    </ul>
+
+    <h2>Deleting your data</h2>
+    <p>Open <b>Settings</b> in the app. <b>Delete all resumes</b> removes every resume, version, chat, review, and uploaded file immediately and permanently, keeping your login. <b>Delete my account</b> does all of that and also removes your login, cancels any subscription, and deletes your customer record at Stripe. There is no recovery, and you don't need to email anyone to do it.</p>
+
+    <h2>Cookies</h2>
+    <p>One cookie keeps you signed in. The browser's local storage remembers small preferences like whether you've dismissed the first-run checklist. There are no third-party cookies.</p>
+
+    <h2>Email</h2>
+    <p>We email you for password resets, receipts and billing notices, and important changes to the service. No marketing email unless you ask for it.</p>
+
+    <h2>Your rights</h2>
+    <p>Wherever you live, you can see, export (download the PDF and LaTeX of any version), correct, and delete your data yourself from the app. If you need something the app can't do, or want a copy of everything we hold about you, email us and we'll handle it within 30 days. If you're in the EU, UK, or California, the rights those laws give you apply, and this page is how we meet them.</p>
+
+    <h2>Children</h2>
+    <p>The service isn't for people under 16. If you think a child has created an account, email us and we'll delete it.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes in a way that matters, we'll email account holders before it takes effect and update the date above.</p>
+
+    <h2>Contact</h2>
+    <p>Privacy questions or requests: <a id="support" href="#">email us</a>.</p>
+  </div>
+  <script>
+    fetch("/api/public").then((r) => r.json()).then((c) => {
+      const a = document.getElementById("support");
+      if (c.support) { a.href = "mailto:" + c.support; a.textContent = c.support; }
+    }).catch(() => {});
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Resume Editor
+User-agent: *
+Allow: /
+Allow: /welcome
+Allow: /terms
+Allow: /privacy
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /login.html
+Disallow: /reset.html
+Disallow: /screenshots/
+
+Sitemap: https://paidresume.adamcorbin.com/sitemap.txt

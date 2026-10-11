@@ -490,3 +490,17 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
     border-radius: 8px; background: var(--accent); color: var(--accent-text); font-size: 10px; line-height: 16px;
   }
 }
+
+/* Legal and auxiliary pages */
+.login-foot { font-size: 12px; }
+.login-foot a, .doc a { color: var(--accent); }
+.doc { max-width: 720px; margin: 0 auto; padding: 24px 20px 64px; font-size: 15px; line-height: 1.6; }
+.doc h1 { font-size: 28px; margin: 12px 0 4px; letter-spacing: -0.01em; }
+.doc h2 { font-size: 18px; margin: 28px 0 6px; }
+.doc p, .doc li { color: var(--text); }
+.doc .muted { font-size: 13px; }
+.doc-nav { display: flex; align-items: center; gap: 12px; padding: 16px 0; }
+.doc-nav .brand { font-weight: 700; }
+.doc-nav .spacer { flex: 1; }
+html:has(.doc), body:has(.doc) { height: auto !important; overflow: auto !important; }
+body:has(.doc) { display: block; }
