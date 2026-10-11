@@ -401,7 +401,7 @@ function render(tex) {
       list.append(li);
     }
   }
-  $("menuBtn").hidden = !state.id;
+  syncMenu();
 }
 
 function addMessage(role, text, version, scroll = true, log) {
@@ -509,7 +509,7 @@ function newResume() {
   $("resumePicker").value = "";
   $("downloads").hidden = true;
   $("renameBtn").hidden = true;
-  $("menuBtn").hidden = true;
+  syncMenu();
   showView("upload");
 }
 
@@ -1601,7 +1601,15 @@ document.addEventListener("selectionchange", () => {
 
 // ---------- Mobile bottom sheet (actions + versions) ----------
 
+// The menu shows whenever there is something to put in it: resume actions, or Sign out.
+let authed = false;
+function syncMenu() {
+  $("menuBtn").hidden = !(state.id || authed);
+}
 function openSheet() {
+  const open = Boolean(state.id);
+  for (const id of ["sheetPdf", "sheetTex", "sheetRename", "sheetVersionsTitle", "sheetVersions"]) $(id).hidden = !open;
+  $("sheetLogout").hidden = !authed;
   $("sheet").hidden = false;
   $("sheetBackdrop").hidden = false;
   $("sheetPdf").onclick = () => { closeSheet(); $("dlPdf").click(); };
@@ -1795,7 +1803,9 @@ window.addEventListener("beforeunload", (e) => {
   const problems = [];
   if (health?.missingTools?.length) problems.push(`Missing on the server: ${health.missingTools.join(", ")}. Run: brew install tectonic poppler`);
   if (health?.auth) {
+    authed = true;
     $("logoutBtn").hidden = false;
+    syncMenu();
     fetch("/api/me").then((r) => r.json()).then((me) => {
       $("logoutBtn").textContent = `Sign out (${me.email})`;
       if (me.analytics) initAnalytics(me.analytics, me.id);
