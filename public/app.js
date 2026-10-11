@@ -87,6 +87,7 @@ function setBusy(on, text = "Working…", btn = null) {
   $("recompileBtn").disabled = on || !dirty;
   document.querySelectorAll("#chips button").forEach((b) => (b.disabled = on));
   if (!on && updatePending) setTimeout(() => location.reload(), 1500);
+  if (!on && planShown) refreshPlan();
   busyBtn?.classList.remove("btn-busy");
   busyBtn = on ? btn : null;
   busyBtn?.classList.add("btn-busy");
@@ -301,7 +302,12 @@ function applyJobResult(kind, evt) {
 async function streamJson(res, onEvent) {
   if (!res.ok && !res.headers.get("content-type")?.includes("ndjson")) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed (${res.status})`);
+    const err = new Error(body.error || `Request failed (${res.status})`);
+    if (res.status === 402) {
+      err.upgrade = true;
+      showPlan(body.plan);
+    }
+    throw err;
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -323,6 +329,10 @@ async function streamJson(res, onEvent) {
 // connection drops, which on a phone usually means the screen locked or the app was
 // switched away mid-request. The server keeps working; a reload shows the result.
 function explainError(err) {
+  if (err.upgrade) {
+    toast(err.message, "error", 6000);
+    return `${err.message} Use the Upgrade link above the quick actions.`;
+  }
   if (err instanceof TypeError || /load failed|failed to fetch|network/i.test(err.message || "")) {
     return "The connection dropped before Claude finished (this happens on phones when the screen locks or you switch apps). The work usually completes on the server anyway: tap Reload to check.";
   }
@@ -1612,6 +1622,42 @@ function autoGrow() {
 }
 $("promptInput").addEventListener("input", autoGrow);
 
+// ---------- Plan and limits (only when the server reports a plan) ----------
+
+let planShown = false;
+function showPlan(plan) {
+  const bar = $("planBar");
+  planShown = Boolean(plan);
+  bar.hidden = !plan;
+  if (!plan) return;
+  const parts = [plan.label || plan.plan];
+  if (plan.limit != null) parts.push(`${plan.remaining} of ${plan.limit} AI actions left${plan.resetsAt ? ` until ${new Date(plan.resetsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}`);
+  else if (plan.expiresAt) parts.push(`until ${new Date(plan.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`);
+  $("planText").textContent = parts.join(" · ");
+  const link = $("planLink");
+  if (plan.upgradeUrl) {
+    link.hidden = false;
+    link.textContent = plan.remaining === 0 ? "Upgrade to continue" : "Upgrade";
+    link.href = plan.upgradeUrl;
+    bar.classList.toggle("plan-out", plan.remaining === 0);
+  } else if (plan.portalUrl) {
+    link.hidden = false;
+    link.textContent = "Manage";
+    link.href = plan.portalUrl;
+    bar.classList.remove("plan-out");
+  } else link.hidden = true;
+}
+async function refreshPlan() {
+  try {
+    const me = await fetch("/api/me").then((r) => r.json());
+    showPlan(me.plan);
+  } catch {}
+}
+if (new URLSearchParams(location.search).get("billing") === "success") {
+  history.replaceState(null, "", location.pathname + location.hash);
+  toast("Thanks! Your plan is active.", "done", 6000);
+}
+
 // ---------- Analytics (PostHog, only when the server has a key) ----------
 
 let ph = null;
@@ -1720,6 +1766,7 @@ window.addEventListener("beforeunload", (e) => {
     fetch("/api/me").then((r) => r.json()).then((me) => {
       $("logoutBtn").textContent = `Sign out (${me.email})`;
       if (me.analytics) initAnalytics(me.analytics, me.id);
+      showPlan(me.plan);
     }).catch(() => {});
     $("logoutBtn").onclick = async () => {
       await fetch("/api/logout", { method: "POST" });

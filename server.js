@@ -7,7 +7,7 @@ import multer from "multer";
 import Anthropic from "@anthropic-ai/sdk";
 import { diffLines, diffWords } from "diff";
 import { compileTex, checkTools, pdfToText, parseSynctex } from "./lib/latex.js";
-import { BACKEND, checkClaudeCli, textIsUsable, convertPdf, editTex, analyzeTex, tailorTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
+import { BACKEND, MODEL, checkClaudeCli, textIsUsable, convertPdf, editTex, analyzeTex, tailorTex, applyReplacements, fixCompileRequest, fitPageRequest } from "./lib/claude.js";
 import { atsCheck, repeatEmployers, fetchJobPosting, pageWordCounts } from "./lib/ats.js";
 import { scoreKeywords } from "./public/keywords.js";
 import * as store from "./lib/store.js";
@@ -15,6 +15,9 @@ import { signupOpen, requireAuth, login, signup, logout, authInfo, googleStart, 
 import { analyticsEnabled, posthogHost, track, trackError, shutdownAnalytics } from "./lib/analytics.js";
 import { compileLane, claudeLane, queueStats } from "./lib/queue.js";
 import { createJob, recordEvent, getJob, activeJob, publicJob } from "./lib/jobs.js";
+import { plans, setPlans, gate } from "./lib/plans.js";
+import { loadPrivate } from "./lib/private.js";
+import { db } from "./lib/db.js";
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";
@@ -28,6 +31,9 @@ app.use((req, res, next) => {
   if (req.headers["x-forwarded-proto"] === "http") return res.redirect(301, `https://${req.headers["x-forwarded-host"] || req.headers.host}${req.originalUrl}`);
   next();
 });
+// Billing or other private additions, if present (see lib/private.js). Registered before
+// the body parser so a webhook can read the raw body.
+await loadPrivate(app, { express, db, store, requireAuth, track, setPlans, backend: BACKEND });
 app.use(express.json({ limit: "2mb" }));
 // Unauthenticated health check for uptime monitors.
 app.get("/healthz", async (_req, res) => {
@@ -168,9 +174,13 @@ app.get("/api/health", async (_req, res) => {
 });
 
 app.get("/api/resumes", (req, res) => res.json(store.listResumes(req.user.id)));
-app.get("/api/me", (req, res) =>
-  res.json({ id: req.user.id, email: req.user.email, analytics: analyticsEnabled ? { key: process.env.POSTHOG_KEY, host: posthogHost } : null })
+app.get("/api/me", async (req, res) =>
+  res.json({ id: req.user.id, email: req.user.email, analytics: analyticsEnabled ? { key: process.env.POSTHOG_KEY, host: posthogHost } : null, plan: await plans.status(req.user) })
 );
+
+// One row per AI action, for plan limits and cost tracking. Token counts are only known
+// on the API backend; the CLI and bridge report time only.
+const metered = (req, kind, startedAt, resumeId) => store.recordUsage({ userId: req.user.id, resumeId, kind, backend: BACKEND, model: MODEL, ms: Date.now() - startedAt });
 
 app.patch("/api/resumes/:id", (req, res) => {
   try {
@@ -208,7 +218,8 @@ app.get("/api/resumes/:id", async (req, res) => {
 });
 
 // Upload a PDF and convert it to the template.
-app.post("/api/resumes", upload.single("pdf"), async (req, res) => {
+app.post("/api/resumes", upload.single("pdf"), gate("convert"), async (req, res) => {
+  const startedAt = Date.now();
   if (!req.file) return res.status(400).json({ error: "Attach a PDF." });
   if (!req.file.originalname.toLowerCase().endsWith(".pdf")) return res.status(400).json({ error: "Only PDF files are supported." });
   const job = createJob(req.user.id, null, "convert");
@@ -230,6 +241,7 @@ app.post("/api/resumes", upload.single("pdf"), async (req, res) => {
       { role: "assistant", text: converted.summary, version: meta.versions.length + 1 }
     ]);
     await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: "Converted from PDF" });
+    metered(req, "convert", startedAt, meta.id);
     track(req.user.id, "resume_converted", { pages: built.pages, backend: BACKEND, usedText: textIsUsable(text) });
     send({ type: "done", state: publicState(meta), tex: built.tex });
   } catch (err) {
@@ -241,7 +253,8 @@ app.post("/api/resumes", upload.single("pdf"), async (req, res) => {
 });
 
 // Prompt-driven tweak.
-app.post("/api/resumes/:id/edit", async (req, res) => {
+app.post("/api/resumes/:id/edit", gate("edit"), async (req, res) => {
+  const startedAt = Date.now();
   const prompt = (req.body.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Enter a change to make." });
   const meta = lookup(req, res);
@@ -256,6 +269,7 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
     const built = await compileWithRepair(edited.tex, { send, history, source, fitOnePage: false });
     store.addMessages(meta, [{ role: "user", text: prompt }, { role: "assistant", text: edited.summary, version: meta.versions.length + 1 }]);
     await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: prompt.slice(0, 80) });
+    metered(req, "edit", startedAt, meta.id);
     track(req.user.id, "resume_edited", { pages: built.pages, backend: BACKEND });
     send({ type: "done", state: publicState(meta), tex: built.tex });
   } catch (err) {
@@ -267,7 +281,8 @@ app.post("/api/resumes/:id/edit", async (req, res) => {
 });
 
 // Review the current version and return suggestions for the user to accept or skip.
-app.post("/api/resumes/:id/analyze", async (req, res) => {
+app.post("/api/resumes/:id/analyze", gate("analyze"), async (req, res) => {
+  const startedAt = Date.now();
   const meta = lookup(req, res);
   if (!meta) return;
   const send = ndjson(res, createJob(req.user.id, meta.id, "analyze"));
@@ -277,6 +292,7 @@ app.post("/api/resumes/:id/analyze", async (req, res) => {
     const source = await store.getSource(meta);
     send({ type: "status", message: "Claude is reviewing the resume…" });
     const result = await claudeLane.run(() => analyzeTex(tex, { focus: (req.body.focus || "").trim(), source, onProgress: send }), (pos) => send({ type: "status", message: `Waiting for Claude (${pos} ahead)…` }));
+    metered(req, "analyze", startedAt, meta.id);
     track(req.user.id, "resume_analyzed", { suggestions: result.suggestions.length, dropped: result.dropped, backend: BACKEND });
     store.saveReview(meta, meta.current, result);
     send({ type: "done", version: meta.current, ...result });
@@ -339,7 +355,8 @@ app.post("/api/resumes/:id/apply", async (req, res) => {
 
 // Tailor to a job posting: pasted text or a link. Produces a keyword match score plus
 // suggestions in the same shape as /analyze, so accept/edit/skip/apply is shared.
-app.post("/api/resumes/:id/tailor", async (req, res) => {
+app.post("/api/resumes/:id/tailor", gate("tailor"), async (req, res) => {
+  const startedAt = Date.now();
   const pasted = String(req.body.job || "").trim();
   const url = String(req.body.url || "").trim();
   if (!pasted && !url) return res.status(400).json({ error: "Paste the job description or a link to it." });
@@ -367,6 +384,7 @@ app.post("/api/resumes/:id/tailor", async (req, res) => {
       { role: "user", text: `Tailor to: ${[result.job.company, result.job.title].filter(Boolean).join(", ") || job.url || "pasted job description"}` },
       { role: "assistant", text: `${result.summary} Keyword match: ${before.pct}% now, ${after.pct}% with every suggestion accepted.` },
     ]);
+    metered(req, "tailor", startedAt, meta.id);
     track(req.user.id, "resume_tailored", { suggestions: result.suggestions.length, keywords: result.keywords.length, before: before.pct, after: after.pct, viaUrl: !!url, backend: BACKEND });
     send({ type: "done", version: meta.current, messages: meta.messages.slice(-2), ...review });
   } catch (err) {
@@ -378,7 +396,8 @@ app.post("/api/resumes/:id/tailor", async (req, res) => {
 });
 
 // Fit to one page: up to three increasingly firm passes, each told how much spilled over.
-app.post("/api/resumes/:id/fit", async (req, res) => {
+app.post("/api/resumes/:id/fit", gate("fit"), async (req, res) => {
+  const startedAt = Date.now();
   const meta = lookup(req, res);
   if (!meta) return;
   const send = ndjson(res, createJob(req.user.id, meta.id, "fit"));
@@ -413,6 +432,7 @@ app.post("/api/resumes/:id/fit", async (req, res) => {
       { role: "assistant", text: fits ? `Now one page. ${summaries.join(" ")}` : `Still ${pages} pages after three passes. ${summaries.at(-1)} Try removing a role or section by hand, or tell me what can go.`, version: meta.versions.length + 1 },
     ]);
     await store.addVersion(meta, { tex: built.tex, pdf: built.pdf, synctex: built.synctex, pages: built.pages, label: fits ? "Fit to one page" : `Tightened (still ${pages} pages)` });
+    metered(req, "fit", startedAt, meta.id);
     track(req.user.id, "fit_one_page", { fits, rounds: summaries.length, backend: BACKEND });
     send({ type: "done", state: publicState(meta), tex: built.tex, fits, pages });
   } catch (err) {

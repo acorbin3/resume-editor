@@ -93,6 +93,19 @@ Compiles and Claude calls run through small in-process queues (`COMPILE_CONCURRE
 Upgrading from the pre-database layout: create your account in the app, then
 `npm run migrate -- you@example.com` imports the old `data/<uuid>/` folders.
 
+## Private additions (billing)
+
+The public app has no billing. It does have a hook for it: `lib/plans.js` decides whether a user
+may run an AI action (`convert`, `edit`, `analyze`, `tailor`, `fit`) and what the chat shows
+about their plan, and the default is "everything free". Every AI action is also written to the
+`usage` table (kind, backend, model, duration), which is what any limit would count.
+
+If a `private/` folder exists next to `server.js`, its `index.js` is imported at startup and can
+register routes, create tables, and replace the plan hook. The folder is gitignored, so it can
+live in its own private repo and be cloned into place on the machine that runs the site; the
+Docker build copies it when present. Non-AI features (import, ATS check, the employer fix, manual
+LaTeX edits, versions, downloads) are never gated.
+
 ## Monitoring
 
 - `GET /healthz` (no login) returns 200 when tectonic and poppler are present, 503 otherwise; point an
@@ -108,6 +121,7 @@ Upgrading from the pre-database layout: create your account in the app, then
 - `lib/ats.js`: ATS parse checks, the repeat-employer fix, and job posting fetching (public hosts only).
 - `public/keywords.js`: keyword matching shared by the server (scores) and the browser (live meter).
 - `lib/store.js`: on-disk storage.
+- `lib/plans.js`, `lib/private.js`: plan hook (default: unlimited) and the private overlay loader.
 - `public/`: the single-page UI. `public/syncmap.js` maps SyncTeX records to source lines and PDF rows.
 - `editor/entry.js`: the CodeMirror setup, bundled to `public/vendor/editor.js`.
   After changing it, run `npm run build:editor`.

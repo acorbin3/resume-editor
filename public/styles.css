@@ -191,6 +191,12 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
 .sg textarea { width: 100%; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .suggestions-actions { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--border); }
 
+/* Plan line above the quick actions (only with billing installed) */
+.plan { display: flex; align-items: center; gap: 10px; padding: 6px 16px 0; font-size: 12px; color: var(--muted); }
+.plan a { color: var(--accent); font-weight: 600; text-decoration: none; margin-left: auto; }
+.plan.plan-out { color: var(--error); font-weight: 600; }
+.plan.plan-out a { padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-text); }
+
 /* Chip states (ATS score, page overflow) */
 .chips .chip-good { border-color: #16a34a; color: #15803d; }
 .chips .chip-warn { border-color: #d97706; color: #b45309; font-weight: 600; }
@@ -401,6 +407,7 @@ textarea { width: 100%; padding: 8px 10px; resize: vertical; }
   .msg.pending { max-width: 100%; font-size: 13px; }
 
   /* Quick actions: one row, swipe sideways */
+  .plan { padding: 4px 12px 0; }
   .chips { flex-wrap: nowrap; overflow-x: auto; padding: 6px 12px 2px; gap: 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .chips::-webkit-scrollbar { display: none; }
   .chips button { flex: 0 0 auto; padding: 7px 12px; font-size: 13px; min-height: 34px; white-space: nowrap; }

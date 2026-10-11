@@ -48,6 +48,8 @@ COPY lib ./lib
 COPY public ./public
 COPY template ./template
 COPY scripts ./scripts
+# Optional private overlay (billing); the glob makes the COPY a no-op when the folder is absent.
+COPY privat[e] ./private
 COPY --from=editor /app/public/vendor ./public/vendor
 
 # Warm tectonic's package cache by compiling the template once, so the first real
