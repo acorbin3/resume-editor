@@ -1607,7 +1607,7 @@ function syncMenu() {
   $("menuBtn").hidden = !(state?.id || authed);
 }
 function openSheet() {
-  const open = Boolean(state.id);
+  const open = Boolean(state?.id);
   for (const id of ["sheetPdf", "sheetTex", "sheetRename", "sheetVersionsTitle", "sheetVersions"]) $(id).hidden = !open;
   $("sheetLogout").hidden = !authed;
   $("sheet").hidden = false;
