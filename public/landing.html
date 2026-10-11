@@ -233,7 +233,7 @@
         coachForm.classList.add("sent");
         coachForm.querySelector(".coach-head .muted").textContent = `Thanks, ${body.name.split(" ")[0]}. Your request is in; expect a reply at ${body.email} within a day.`;
       } catch (err) {
-        status.textContent = err.message + (support ? ` You can also email ${support}.` : "");
+        status.textContent = err.message + (support && !err.message.includes(support) ? ` You can also email ${support}.` : "");
         btn.disabled = false;
       }
     };

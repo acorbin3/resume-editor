@@ -139,8 +139,9 @@ LaTeX edits, versions, downloads) are never gated.
 - `SIGNUP_CODE` / `ALLOW_SIGNUP`: control who can create an account.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `APP_URL`: enable "Continue with Google".
 - `POSTHOG_KEY` / `POSTHOG_HOST`: product analytics.
-- `RESEND_API_KEY` / `MAIL_FROM`: outbound email for password resets (Resend). Without a key, reset
-  emails are printed to the log; in production the reset form says to contact support instead.
+- `RESEND_API_KEY`, or `SMTP_USER` / `SMTP_PASS` (Gmail App Password works; `SMTP_HOST`/`SMTP_PORT` for others),
+  plus `MAIL_FROM`: outbound email for password resets and coaching requests. Without either, emails are
+  printed to the log; in production the forms say to contact support instead.
 - `SUPPORT_EMAIL`: shown on the landing page, settings, terms, and privacy pages, and used for coaching bookings.
 - `DATA_DIR`: where the database, repos, and blobs live (default `./data`).
 
